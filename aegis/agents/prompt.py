@@ -41,6 +41,7 @@ def _resolve_skills(
     ordered: list[str] = list(requested or [])
     ordered.append(f"scan_modes/{scan_mode}")
     ordered.append("tooling/agent_browser")
+    ordered.append("tooling/browser_use")
     ordered.append("tooling/python")
     if is_root:
         ordered.append("coordination/root_agent")

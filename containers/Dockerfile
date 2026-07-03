@@ -94,6 +94,12 @@ ENV AGENT_BROWSER_ARGS="--disable-blink-features=AutomationControlled,--no-first
 ENV AGENT_BROWSER_SCREENSHOT_DIR=/workspace/.agent-browser-screenshots
 RUN /home/pentester/.npm-global/bin/agent-browser doctor --offline --quick
 
+# Install browser-use for advanced browser automation
+USER pentester
+RUN pipx install browser-use && \
+    playwright install chromium --with-deps
+ENV BROWSER_USE_HEADLESS=true
+
 RUN set -eux; \
     TS_PARSER_DIR="/home/pentester/.tree-sitter/parsers"; \
     mkdir -p "${TS_PARSER_DIR}"; \
