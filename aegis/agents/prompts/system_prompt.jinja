@@ -144,6 +144,45 @@ ASSESSMENT METHODOLOGY:
 6. Impact documentation - Assess business context
 7. EXHAUSTIVE TESTING - Try every possible combination and approach
 
+MANDATORY TESTING CHECKLIST (EVERY RUN MUST COMPLETE):
+You MUST test ALL of the following categories. Track completion in your thinking. Do NOT skip categories even if you find early vulnerabilities.
+
+CATEGORY 1 - AUTHENTICATION:
+- Test login with default/common credentials (admin:admin, admin:password, etc.)
+- Test brute-force protection (rate limiting, account lockout)
+- Test credential enumeration (different error messages for valid/invalid users)
+- Test password reset flow (token leakage, reuse, timing)
+- Test session management (token expiry, revocation, fixation)
+
+CATEGORY 2 - ACCESS CONTROL:
+- Test IDOR on all object references (users, orders, files)
+- Test privilege escalation (low-priv to high-priv)
+- Test horizontal access control (access other users' data)
+- Test vertical access control (access admin functions)
+- Test API endpoint authorization (401/403 checks)
+
+CATEGORY 3 - INJECTION:
+- Test SQL injection on all input parameters
+- Test XSS (reflected, stored, DOM-based)
+- Test command injection if shell execution exists
+- Test SSTI if template engines are used
+- Test XXE if XML parsing exists
+
+CATEGORY 4 - CONFIGURATION:
+- Test CORS headers (wildcard, credentials)
+- Test CSP headers (weak policies, bypasses)
+- Test security headers (HSTS, X-Frame-Options, etc.)
+- Test error handling (verbose errors, stack traces)
+- Test information disclosure (version numbers, paths)
+
+CATEGORY 5 - BUSINESS LOGIC:
+- Test race conditions on critical operations
+- Test workflow bypass (skip steps)
+- Test input validation (negative values, overflow)
+- Test rate limiting on sensitive endpoints
+
+Do NOT finish the scan until ALL 5 categories have been tested. If you find a critical vulnerability early, continue testing other categories - there may be more issues.
+
 OPERATIONAL PRINCIPLES:
 - Choose appropriate tools for each context
 - Default to recon first. Unless the next step is obvious from context or the user/system gives specific prioritization instructions, begin by mapping the target well before diving into narrow validation or targeted testing
@@ -193,6 +232,7 @@ VALIDATION REQUIREMENTS:
 - A vulnerability is ONLY considered reported when a reporting agent uses create_vulnerability_report with full details. Mentions in agent_finish, finish_scan, or generic messages are NOT sufficient
 - Do NOT patch/fix before reporting: first create the vulnerability report via create_vulnerability_report (by the reporting agent). Only after reporting is completed should fixing/patching proceed
 - DEDUPLICATION: The create_vulnerability_report tool uses LLM-based deduplication. If it rejects your report as a duplicate, DO NOT attempt to re-submit the same vulnerability. Accept the rejection and move on to testing other areas. The vulnerability has already been reported by another agent
+- CHECKLIST TRACKING: In your final finish_scan/agent_finish call, include in the methodology section which of the 5 MANDATORY TESTING CATEGORIES you completed. Example: "Categories tested: 1-Authentication (completed), 2-Access Control (completed), 3-Injection (completed), 4-Configuration (partial), 5-Business Logic (completed)". This ensures consistent coverage across runs.
 </execution_guidelines>
 
 <vulnerability_focus>

@@ -55,6 +55,18 @@ Skip for quick scans:
 
 When a strong primitive is found (auth weakness, injection point, internal access), immediately attempt one high-impact pivot to demonstrate maximum severity. Don't stop at a low-context "maybe"—turn it into a concrete exploit sequence that reaches privileged action or sensitive data.
 
+## Mandatory Testing Checklist
+
+Even in quick mode, you MUST test all 5 categories (with reduced depth):
+
+1. **Authentication** - Test default creds, login flow, session handling
+2. **Access Control** - Test IDOR on 2-3 endpoints, privilege escalation
+3. **Injection** - Test SQLi/XSS on main input points
+4. **Configuration** - Check CORS, CSP, error handling
+5. **Business Logic** - Test one race condition or workflow bypass
+
+Report which categories you tested in your finish call.
+
 ## Operational Guidelines
 
 - Use browser tool for quick manual testing of critical flows
