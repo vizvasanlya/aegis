@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-APP=strix
-REPO="usestrix/strix"
-STRIX_IMAGE="ghcr.io/usestrix/strix-sandbox:1.0.0"
+APP=aegis
+REPO="vizvasanlya/aegis"
+AEGIS_IMAGE="ghcr.io/vizvasanlya/aegis-sandbox:latest"
 
 MUTED='\033[0;2m'
 RED='\033[0;31m'
@@ -337,14 +337,13 @@ echo -e "${MUTED}To get started:${NC}"
 echo ""
 echo -e "  ${CYAN}1.${NC} Set your environment:"
 echo -e "     ${MUTED}export LLM_API_KEY='your-api-key'${NC}"
-echo -e "     ${MUTED}export STRIX_LLM='openai/gpt-5.4'${NC}"
+echo -e "     ${MUTED}export AEGIS_LLM='openai/gpt-4o'${NC}"
 echo ""
 echo -e "  ${CYAN}2.${NC} Run a penetration test:"
-echo -e "     ${MUTED}strix --target https://example.com${NC}"
+echo -e "     ${MUTED}aegis --target https://example.com${NC}"
 echo ""
-echo -e "${MUTED}For more information visit ${NC}https://strix.ai"
-echo -e "${MUTED}Supported models ${NC}https://docs.strix.ai/llm-providers/overview"
-echo -e "${MUTED}Join our community ${NC}https://discord.gg/strix-ai"
+echo -e "${MUTED}For more information visit ${NC}https://github.com/vizvasanlya/aegis"
+echo -e "${MUTED}Documentation ${NC}https://github.com/vizvasanlya/aegis#readme"
 echo ""
 
 echo -e "${YELLOW}→${NC} Run ${MUTED}source ~/.$(basename $SHELL)rc${NC} or open a new terminal"

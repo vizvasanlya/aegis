@@ -1,8 +1,8 @@
 ### Overview
 
-To help make Strix better for everyone, we collect anonymized data that helps us understand how to better improve our AI security agent for our users, guide the addition of new features, and fix common errors and bugs. This feedback loop is crucial for improving Strix's capabilities and user experience.
+To help make Aegis better for everyone, we collect anonymized data that helps us understand how to improve our AI security agent, guide new features, and fix bugs. This feedback loop is crucial for improving Aegis's capabilities.
 
-We use [PostHog](https://posthog.com), an open-source analytics platform, for data collection and analysis. Our telemetry implementation is fully transparent - you can review the [source code](https://github.com/usestrix/strix/blob/main/strix/telemetry/posthog.py) to see exactly what we track.
+We use [PostHog](https://posthog.com), an open-source analytics platform, for data collection. Our telemetry is fully transparent - you can review the source code to see exactly what we track.
 
 ### Telemetry Policy
 
@@ -10,27 +10,27 @@ Privacy is our priority. All collected data is anonymized by default. Each sessi
 
 ### What We Track
 
-We collect only very **basic** usage data including:
+We collect only basic usage data:
 
-**Session Errors:** Duration and error types (not messages or stack traces)\
-**System Context:** OS type, architecture, Strix version\
-**Scan Context:** Scan mode (quick/standard/deep), scan type (whitebox/blackbox)\
-**Model Usage:** Which LLM model is being used (not prompts or responses)\
-**Aggregate Metrics:** Vulnerability counts by severity
+- **Session Errors:** Duration and error types (not messages or stack traces)
+- **System Context:** OS type, architecture, Aegis version
+- **Scan Context:** Scan mode (quick/standard/deep), scan type (whitebox/blackbox)
+- **Model Usage:** Which LLM model is being used (not prompts or responses)
+- **Aggregate Metrics:** Vulnerability counts by severity
 
-### What We **Never** Collect
+### What We Never Collect
 
-- Usernames, or any identifying information
+- Usernames or identifying information
 - Scan targets, file paths, target URLs, or domains
 - Vulnerability details, descriptions, or code
 - LLM requests and responses
 
 ### How to Opt Out
 
-Telemetry in Strix is entirely **optional**:
+Telemetry is entirely optional:
 
 ```bash
-export STRIX_TELEMETRY=0
+export AEGIS_TELEMETRY=0
 ```
 
-You can set this environment variable before running Strix to disable **all** telemetry.
+Set this environment variable before running Aegis to disable all telemetry.

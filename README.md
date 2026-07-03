@@ -1,7 +1,6 @@
 <p align="center">
-  <a href="https://github.com/vizvasanlya/aegis">
-    <img src="https://github.com/usestrix/.github/raw/main/imgs/cover.png" alt="Aegis Banner" width="100%">
-  </a>
+  <h1 align="center">AEGIS</h1>
+  <p align="center">Open-source AI pentesting tool</p>
 </p>
 
 <div align="center">
