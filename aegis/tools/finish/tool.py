@@ -132,9 +132,10 @@ async def finish_scan(
         - ``methodology`` — frameworks followed (OWASP WSTG, PTES,
           OSSTMM, NIST), engagement type (black/gray/white box), scope
           and constraints, categories of testing performed. MUST include
-          which of the 5 mandatory testing categories were completed
-          (Authentication, Access Control, Injection, Configuration,
-          Business Logic). **No**
+          which of the 8 mandatory testing categories were completed
+          (Authentication & Session, Access Control, Injection, Server-Side,
+          Client-Side, Configuration, Business Logic, API Security).
+          **No**
           internal execution detail.
         - ``technical_analysis`` — consolidated findings overview with
           severity model and systemic root causes. Reference individual

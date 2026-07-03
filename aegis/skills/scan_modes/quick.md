@@ -57,13 +57,16 @@ When a strong primitive is found (auth weakness, injection point, internal acces
 
 ## Mandatory Testing Checklist
 
-Even in quick mode, you MUST test all 5 categories (with reduced depth):
+Even in quick mode, you MUST test all 8 categories (with reduced depth):
 
-1. **Authentication** - Test default creds, login flow, session handling
+1. **Authentication & Session** - Test default creds, login flow, JWT issues
 2. **Access Control** - Test IDOR on 2-3 endpoints, privilege escalation
-3. **Injection** - Test SQLi/XSS on main input points
-4. **Configuration** - Check CORS, CSP, error handling
-5. **Business Logic** - Test one race condition or workflow bypass
+3. **Injection** - Test SQLi/XSS/NoSQLi on main input points
+4. **Server-Side** - Test SSRF, path traversal, file upload
+5. **Client-Side** - Test CSRF, clickjacking, open redirect
+6. **Configuration** - Check CORS, CSP, security headers, error handling
+7. **Business Logic** - Test one race condition or workflow bypass
+8. **API Security** - Test REST/GraphQL auth and data exposure
 
 Report which categories you tested in your finish call.
 
