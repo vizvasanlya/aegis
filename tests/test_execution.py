@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from strix.core.agents import AgentCoordinator
+from aegis.core.agents import AgentCoordinator
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,4 @@
-"""Tests for pure input builders in strix.core.inputs."""
+"""Tests for pure input builders in aegis.core.inputs."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from strix.core.inputs import build_root_task, child_initial_input
+from aegis.core.inputs import build_root_task, child_initial_input
 
 
 def _child_kwargs(parent_history: list[Any]) -> dict[str, Any]:

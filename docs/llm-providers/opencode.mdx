@@ -1,0 +1,88 @@
+---
+title: "OpenCode Zen"
+description: "Configure Strix with OpenCode Zen models"
+---
+
+[OpenCode Zen](https://opencode.ai/docs/zen/) is an AI gateway that provides access to tested and verified models from multiple providers through a single API. It curates the best model/provider combinations for coding agents.
+
+## Setup
+
+```bash
+export STRIX_LLM="opencode/gpt-5.5"
+export OPENCODE_API_KEY="your-zen-api-key"
+```
+
+That's it — the base URL is auto-configured when you use the `opencode/` prefix.
+
+## Available Models
+
+OpenCode Zen offers models from OpenAI, Anthropic, Google, DeepSeek, and more:
+
+| Model | Configuration | Price (input/output per 1M tokens) |
+|-------|---------------|-------------------------------------|
+| GPT 5.5 | `opencode/gpt-5.5` | $5.00 / $30.00 |
+| GPT 5.4 | `opencode/gpt-5.4` | $2.50 / $15.00 |
+| GPT 5.4 Mini | `opencode/gpt-5.4-mini` | $0.75 / $4.50 |
+| Claude Opus 4.8 | `opencode/claude-opus-4-8` | $5.00 / $25.00 |
+| Claude Sonnet 5 | `opencode/claude-sonnet-5` | $2.00 / $10.00 |
+| Claude Sonnet 4.6 | `opencode/claude-sonnet-4-6` | $3.00 / $15.00 |
+| Claude Haiku 4.5 | `opencode/claude-haiku-4-5` | $1.00 / $5.00 |
+| Gemini 3.1 Pro | `opencode/gemini-3.1-pro` | $2.00 / $12.00 |
+| Gemini 3 Flash | `opencode/gemini-3-flash` | $0.50 / $3.00 |
+| DeepSeek V4 Pro | `opencode/deepseek-v4-pro` | $1.74 / $3.48 |
+| DeepSeek V4 Flash | `opencode/deepseek-v4-flash` | $0.14 / $0.28 |
+| Qwen3.7 Max | `opencode/qwen3.7-max` | $2.50 / $7.50 |
+| Kimi K2.7 Code | `opencode/kimi-k2.7-code` | $0.95 / $4.00 |
+
+### Free Models
+
+These models are currently free on OpenCode Zen:
+
+| Model | Configuration |
+|-------|---------------|
+| DeepSeek V4 Flash Free | `opencode/deepseek-v4-flash-free` |
+| MiMo-V2.5 Free | `opencode/mimo-v2.5-free` |
+| North Mini Code Free | `opencode/north-mini-code-free` |
+| Nemotron 3 Ultra Free | `opencode/nemotron-3-ultra-free` |
+| Big Pickle | `opencode/big-pickle` |
+
+<Warning>
+Free models may have limited availability and data retention policies apply. See the [OpenCode Zen docs](https://opencode.ai/docs/zen/) for details.
+</Warning>
+
+## Get API Key
+
+1. Go to [opencode.ai](https://opencode.ai)
+2. Sign in and navigate to **Settings → API Keys**
+3. Create a new API key
+
+## Custom Base URL (Advanced)
+
+If you need to override the base URL (e.g., for a proxy):
+
+```bash
+export STRIX_LLM="opencode/gpt-5.4"
+export OPENCODE_API_KEY="your-zen-api-key"
+export LLM_API_BASE="https://custom-proxy.example.com/zen/v1"
+```
+
+## Example
+
+```bash
+# Run a penetration test with a free model
+export STRIX_LLM="opencode/deepseek-v4-flash-free"
+export OPENCODE_API_KEY="your-zen-api-key"
+strix --target https://example.com --scan-mode quick
+
+# Use a high-performance model for deep testing
+export STRIX_LLM="opencode/claude-opus-4-8"
+strix --target ./app --scan-mode deep
+```
+
+## Benefits
+
+- **Curated models** — Only models that work well with coding agents are included
+- **Competitive pricing** — Sold at cost with no markup beyond processing fees
+- **Multiple providers** — Access OpenAI, Anthropic, Google, and more through one API
+- **Free tier** — Try several models at no cost
+- **No lock-in** — Works with any coding agent, not just OpenCode

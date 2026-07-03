@@ -1,4 +1,4 @@
-"""Tests for graceful handling of persistent RateLimitError in run_strix_scan."""
+"""Tests for graceful handling of persistent RateLimitError in run_aegis_scan."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ import httpx
 import pytest
 from openai import RateLimitError
 
-import strix.tools.notes.tools as notes_tools
-import strix.tools.todo.tools as todo_tools
-from strix.core import runner
-from strix.core.agents import AgentCoordinator
+import aegis.tools.notes.tools as notes_tools
+import aegis.tools.todo.tools as todo_tools
+from aegis.core import runner
+from aegis.core.agents import AgentCoordinator
 
 
 def _make_rate_limit_error() -> RateLimitError:

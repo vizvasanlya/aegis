@@ -13,7 +13,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from strix.interface.utils import (
+from aegis.interface.utils import (
     build_mount_targets_info,
     collect_local_sources,
     dedupe_local_targets,

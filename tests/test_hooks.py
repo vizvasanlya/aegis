@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from strix.core.hooks import BudgetExceededError, ReportUsageHooks
+from aegis.core.hooks import BudgetExceededError, ReportUsageHooks
 
 
 def _make_hooks(max_budget: float | None) -> ReportUsageHooks:

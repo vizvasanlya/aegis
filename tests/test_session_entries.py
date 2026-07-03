@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from agents.sandbox.entries import LocalDir
 
-from strix.runtime.session_manager import build_session_entries
+from aegis.runtime.session_manager import build_session_entries
 
 
 if TYPE_CHECKING:

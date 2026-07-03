@@ -1,4 +1,4 @@
-"""Tests for strix.config.loader: JSON overrides, alias resolution, persistence."""
+"""Tests for aegis.config.loader: JSON overrides, alias resolution, persistence."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from pydantic import AliasChoices, Field
 from pydantic.fields import FieldInfo
 
-from strix.config import loader
+from aegis.config import loader
 
 
 if TYPE_CHECKING:

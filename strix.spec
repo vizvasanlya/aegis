@@ -5,23 +5,23 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 project_root = Path(SPECPATH)
-strix_root = project_root / 'strix'
+aegis_root = project_root / 'aegis'
 
 datas = []
 
-for md_file in strix_root.rglob('skills/**/*.md'):
+for md_file in aegis_root.rglob('skills/**/*.md'):
     rel_path = md_file.relative_to(project_root)
     datas.append((str(md_file), str(rel_path.parent)))
 
-for jinja_file in strix_root.rglob('agents/**/*.jinja'):
+for jinja_file in aegis_root.rglob('agents/**/*.jinja'):
     rel_path = jinja_file.relative_to(project_root)
     datas.append((str(jinja_file), str(rel_path.parent)))
 
-for xml_file in strix_root.rglob('*.xml'):
+for xml_file in aegis_root.rglob('*.xml'):
     rel_path = xml_file.relative_to(project_root)
     datas.append((str(xml_file), str(rel_path.parent)))
 
-for tcss_file in strix_root.rglob('*.tcss'):
+for tcss_file in aegis_root.rglob('*.tcss'):
     rel_path = tcss_file.relative_to(project_root)
     datas.append((str(tcss_file), str(rel_path.parent)))
 
@@ -112,65 +112,65 @@ hiddenimports = [
     # CVSS scoring
     'cvss',
 
-    # Strix modules
-    'strix',
-    'strix.interface',
-    'strix.interface.main',
-    'strix.interface.cli',
-    'strix.interface.tui',
-    'strix.interface.tui.app',
-    'strix.interface.tui.history',
-    'strix.interface.tui.live_view',
-    'strix.interface.tui.messages',
-    'strix.interface.tui.renderers',
-    'strix.interface.tui.renderers.agent_message_renderer',
-    'strix.interface.tui.renderers.agents_graph_renderer',
-    'strix.interface.tui.renderers.base_renderer',
-    'strix.interface.tui.renderers.finish_renderer',
-    'strix.interface.tui.renderers.notes_renderer',
-    'strix.interface.tui.renderers.proxy_renderer',
-    'strix.interface.tui.renderers.registry',
-    'strix.interface.tui.renderers.reporting_renderer',
-    'strix.interface.tui.renderers.thinking_renderer',
-    'strix.interface.tui.renderers.todo_renderer',
-    'strix.interface.tui.renderers.user_message_renderer',
-    'strix.interface.tui.renderers.web_search_renderer',
-    'strix.interface.utils',
-    'strix.agents',
-    'strix.agents.factory',
-    'strix.agents.prompt',
-    'strix.config.models',
-    'strix.core',
-    'strix.core.agents',
-    'strix.core.execution',
-    'strix.core.inputs',
-    'strix.core.paths',
-    'strix.core.runner',
-    'strix.core.sessions',
-    'strix.report',
-    'strix.report.dedupe',
-    'strix.report.state',
-    'strix.report.writer',
-    'strix.runtime',
-    'strix.runtime.backends',
-    'strix.runtime.caido_bootstrap',
-    'strix.runtime.docker_client',
-    'strix.runtime.session_manager',
-    'strix.telemetry',
-    'strix.telemetry.logging',
-    'strix.telemetry.posthog',
-    'strix.tools',
-    'strix.tools.agents_graph.tools',
-    'strix.tools.finish.tool',
-    'strix.tools.notes.tools',
-    'strix.tools.proxy._calls',
-    'strix.tools.proxy.tools',
-    'strix.tools.python.tool',
-    'strix.tools.reporting.tool',
-    'strix.tools.thinking.tool',
-    'strix.tools.todo.tools',
-    'strix.tools.web_search.tool',
-    'strix.skills',
+    # Aegis modules
+    'aegis',
+    'aegis.interface',
+    'aegis.interface.main',
+    'aegis.interface.cli',
+    'aegis.interface.tui',
+    'aegis.interface.tui.app',
+    'aegis.interface.tui.history',
+    'aegis.interface.tui.live_view',
+    'aegis.interface.tui.messages',
+    'aegis.interface.tui.renderers',
+    'aegis.interface.tui.renderers.agent_message_renderer',
+    'aegis.interface.tui.renderers.agents_graph_renderer',
+    'aegis.interface.tui.renderers.base_renderer',
+    'aegis.interface.tui.renderers.finish_renderer',
+    'aegis.interface.tui.renderers.notes_renderer',
+    'aegis.interface.tui.renderers.proxy_renderer',
+    'aegis.interface.tui.renderers.registry',
+    'aegis.interface.tui.renderers.reporting_renderer',
+    'aegis.interface.tui.renderers.thinking_renderer',
+    'aegis.interface.tui.renderers.todo_renderer',
+    'aegis.interface.tui.renderers.user_message_renderer',
+    'aegis.interface.tui.renderers.web_search_renderer',
+    'aegis.interface.utils',
+    'aegis.agents',
+    'aegis.agents.factory',
+    'aegis.agents.prompt',
+    'aegis.config.models',
+    'aegis.core',
+    'aegis.core.agents',
+    'aegis.core.execution',
+    'aegis.core.inputs',
+    'aegis.core.paths',
+    'aegis.core.runner',
+    'aegis.core.sessions',
+    'aegis.report',
+    'aegis.report.dedupe',
+    'aegis.report.state',
+    'aegis.report.writer',
+    'aegis.runtime',
+    'aegis.runtime.backends',
+    'aegis.runtime.caido_bootstrap',
+    'aegis.runtime.docker_client',
+    'aegis.runtime.session_manager',
+    'aegis.telemetry',
+    'aegis.telemetry.logging',
+    'aegis.telemetry.posthog',
+    'aegis.tools',
+    'aegis.tools.agents_graph.tools',
+    'aegis.tools.finish.tool',
+    'aegis.tools.notes.tools',
+    'aegis.tools.proxy._calls',
+    'aegis.tools.proxy.tools',
+    'aegis.tools.python.tool',
+    'aegis.tools.reporting.tool',
+    'aegis.tools.thinking.tool',
+    'aegis.tools.todo.tools',
+    'aegis.tools.web_search.tool',
+    'aegis.skills',
 ]
 
 hiddenimports += collect_submodules('litellm')
@@ -230,7 +230,7 @@ excludes = [
 ]
 
 a = Analysis(
-    ['strix/interface/main.py'],
+    ['aegis/interface/main.py'],
     pathex=[str(project_root)],
     binaries=[],
     datas=datas,
@@ -251,7 +251,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='strix',
+    name='aegis',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
