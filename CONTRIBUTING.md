@@ -1,8 +1,8 @@
-# Contributing to Strix
+# Contributing to Aegis
 
-Thank you for your interest in contributing to Strix! This guide will help you get started with development and contributions.
+Thank you for your interest in contributing to Aegis! This guide will help you get started.
 
-## 🚀 Development Setup
+## Development Setup
 
 ### Prerequisites
 
@@ -15,8 +15,8 @@ Thank you for your interest in contributing to Strix! This guide will help you g
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/usestrix/strix.git
-   cd strix
+   git clone https://github.com/vizvasanlya/aegis.git
+   cd aegis
    ```
 
 2. **Install development dependencies**
@@ -30,87 +30,88 @@ Thank you for your interest in contributing to Strix! This guide will help you g
 
 3. **Configure your LLM provider**
    ```bash
-   export STRIX_LLM="openai/gpt-5.4"
+   export AEGIS_LLM="openai/gpt-4o"
    export LLM_API_KEY="your-api-key"
    ```
 
-4. **Run Strix in development mode**
+4. **Run Aegis in development mode**
    ```bash
-   uv run strix --target https://example.com
+   uv run aegis --target https://example.com
    ```
 
-## 📚 Contributing Skills
+## Contributing Skills
 
-Skills are specialized knowledge packages that enhance agent capabilities. See [strix/skills/README.md](strix/skills/README.md) for detailed guidelines.
+Skills are specialized knowledge packages that enhance agent capabilities. See `aegis/skills/README.md` for detailed guidelines.
 
 ### Quick Guide
 
 1. **Choose the right category** (`/vulnerabilities`, `/frameworks`, `/technologies`, etc.)
-2. **Create a** `.md` file with your skill content
+2. **Create a `.md` file** with your skill content
 3. **Include practical examples** - Working payloads, commands, or test cases
-4. **Provide validation methods** - How to confirm findings and avoid false positives
-5. **Submit via PR** with clear description
 
-## 🔧 Contributing Code
+## Code Quality
 
-### Pull Request Process
+### Running Checks
 
-1. **Create an issue first** - Describe the problem or feature
-2. **Fork and branch** - Work from the `main` branch
-3. **Make your changes** - Follow existing code style
-4. **Write/update tests** - Ensure coverage for new features
-5. **Run quality checks** - `make check-all` should pass
-6. **Submit PR** - Link to issue and provide context
+```bash
+# Format code
+make format
 
-### PR Guidelines
+# Lint code
+make lint
 
-- **Clear description** - Explain what and why
-- **Small, focused changes** - One feature/fix per PR
-- **Include examples** - Show before/after behavior
-- **Update documentation** - If adding features
-- **Pass all checks** - Tests, linting, type checking
+# Type checking
+make type-check
+
+# Security checks
+make security
+
+# All checks
+make check-all
+```
 
 ### Code Style
 
-- Follow PEP 8 with 100-character line limit
-- Use type hints for all functions
-- Write docstrings for public methods
-- Keep functions focused and small
-- Use meaningful variable names
+- Follow PEP 8 style guide
+- Use type hints for all function signatures
+- Write docstrings for public functions
+- Keep functions under 50 lines when possible
 
-## 🐛 Reporting Issues
+## Testing
 
-When reporting bugs, please include:
+```bash
+# Run all tests
+uv run pytest
 
-- Python version and OS
-- Strix version
-- LLMs being used
-- Full error traceback
-- Steps to reproduce
-- Expected vs actual behavior
+# Run specific test file
+uv run pytest tests/test_config_loader.py
 
-## 💡 Feature Requests
+# Run with coverage
+uv run pytest --cov=aegis
+```
 
-We welcome feature ideas! Please:
+## Pull Request Process
 
-- Check existing issues first
-- Describe the use case clearly
-- Explain why it would benefit users
-- Consider implementation approach
-- Be open to discussion
+1. Create a feature branch from `main`
+2. Make your changes with clear commits
+3. Add tests for new functionality
+4. Ensure all checks pass
+5. Submit your pull request
 
-## 🤝 Community
+### PR Guidelines
 
-- **Discord**: [Join our community](https://discord.gg/strix-ai)
-- **Issues**: [GitHub Issues](https://github.com/usestrix/strix/issues)
+- Keep PRs focused on a single change
+- Write clear commit messages
+- Include tests for new features
+- Update documentation if needed
 
-## ✨ Recognition
+## Reporting Issues
 
-We value all contributions! Contributors will be:
-- Listed in release notes
-- Thanked in our Discord
-- Added to contributors list (coming soon)
+- Use GitHub Issues for bug reports
+- Include steps to reproduce
+- Provide environment details (OS, Python version, Docker version)
+- Include relevant logs
 
----
+## License
 
-**Questions?** Reach out on [Discord](https://discord.gg/strix-ai) or create an issue. We're here to help!
+By contributing, you agree that your contributions will be licensed under the Apache License 2.0.

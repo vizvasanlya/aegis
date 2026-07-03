@@ -1,16 +1,12 @@
-# 📚 Strix Skills
+# Aegis Skills
 
-## 🎯 Overview
+## Overview
 
-Skills are specialized knowledge packages that enhance Strix agents with deep expertise in specific vulnerability types, technologies, and testing methodologies. Each skill provides advanced techniques, practical examples, and validation methods that go beyond baseline security knowledge.
+Skills are specialized knowledge packages that enhance Aegis agents with deep expertise in specific vulnerability types, technologies, and testing methodologies. Each skill provides advanced techniques, practical examples, and validation methods.
 
----
+## How Skills Work
 
-## 🏗️ Architecture
-
-### How Skills Work
-
-When an agent is created, it can load up to 5 specialized skills relevant to the specific subtask and context at hand:
+When an agent is created, it loads specialized skills relevant to the task:
 
 ```python
 # Agent creation with specialized skills
@@ -21,50 +17,31 @@ create_agent(
 )
 ```
 
-The skills are dynamically injected into the agent's system prompt, allowing it to operate with deep expertise tailored to the specific vulnerability types or technologies required for the task at hand.
+Skills are dynamically injected into the agent's system prompt for context-specific expertise.
 
----
-
-## 📁 Skill Categories
+## Skill Categories
 
 | Category | Purpose |
 |----------|---------|
-| **`/vulnerabilities`** | Advanced testing techniques for core vulnerability classes like authentication bypasses, business logic flaws, and race conditions |
-| **`/frameworks`** | Specific testing methods for popular frameworks e.g. Django, Express, FastAPI, and Next.js |
-| **`/technologies`** | Specialized techniques for third-party services such as Supabase, Firebase, Auth0, and payment gateways |
-| **`/protocols`** | Protocol-specific testing patterns for GraphQL, WebSocket, OAuth, and other communication standards |
-| **`/tooling`** | Command-line playbooks for core sandbox tools (nmap, nuclei, httpx, ffuf, subfinder, naabu, katana, sqlmap) |
-| **`/cloud`** | Cloud provider security testing for AWS, Azure, GCP, and Kubernetes environments |
-| **`/reconnaissance`** | Advanced information gathering and enumeration techniques for comprehensive attack surface mapping |
-| **`/custom`** | Community-contributed skills for specialized or industry-specific testing scenarios |
+| **`/vulnerabilities`** | Advanced techniques for authentication bypasses, business logic flaws, race conditions |
+| **`/frameworks`** | Testing methods for Django, Express, FastAPI, Next.js |
+| **`/technologies`** | Techniques for Supabase, Firebase, Auth0, payment gateways |
+| **`/protocols`** | Testing patterns for GraphQL, WebSocket, OAuth |
+| **`/tooling`** | Playbooks for nmap, nuclei, httpx, ffuf, sqlmap |
+| **`/cloud`** | AWS, Azure, GCP, Kubernetes security testing |
+| **`/scan_modes`** | Quick, standard, and deep scan methodologies |
+| **`/coordination`** | Multi-agent orchestration patterns |
 
-Notable source-aware skills:
-- `source_aware_whitebox` (coordination): white-box orchestration playbook
-- `source_aware_sast` (custom): semgrep/AST/secrets/supply-chain static triage workflow
+## Creating Skills
 
----
+A good skill includes:
 
-## 🎨 Creating New Skills
+- **Advanced techniques** - Non-obvious methods for the domain
+- **Practical examples** - Working payloads and commands
+- **Validation methods** - How to confirm findings
+- **Context insights** - Version nuances and edge cases
+- **YAML frontmatter** - `name` and `description` fields
 
-### What Should a Skill Contain?
+## Contributing
 
-A good skill is a structured knowledge package that typically includes:
-
-- **Advanced techniques** - Non-obvious methods specific to the task and domain
-- **Practical examples** - Working payloads, commands, or test cases with variations
-- **Validation methods** - How to confirm findings and avoid false positives
-- **Context-specific insights** - Environment and version nuances, configuration-dependent behavior, and edge cases
-- **YAML frontmatter** - `name` and `description` fields for skill metadata
-
-Skills focus on deep, specialized knowledge to significantly enhance agent capabilities. They are dynamically injected into agent context when needed.
-
----
-
-## 🤝 Contributing
-
-Community contributions are more than welcome — contribute new skills via [pull requests](https://github.com/usestrix/strix/pulls) or [GitHub issues](https://github.com/usestrix/strix/issues) to help expand the collection and improve extensibility for Strix agents.
-
----
-
-> [!NOTE]
-> **Work in Progress** - We're actively expanding the skills collection with specialized techniques and new categories.
+Contributions welcome via [pull requests](https://github.com/vizvasanlya/aegis/pulls) or [GitHub issues](https://github.com/vizvasanlya/aegis/issues).

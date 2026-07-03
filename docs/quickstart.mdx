@@ -1,6 +1,6 @@
 ---
 title: "Quick Start"
-description: "Install Strix and run your first security scan"
+description: "Install Aegis and run your first security scan"
 ---
 
 ## Prerequisites
@@ -10,67 +10,73 @@ description: "Install Strix and run your first security scan"
 
 ## Installation
 
-<Tabs>
-  <Tab title="curl">
-    ```bash
-    curl -sSL https://strix.ai/install | bash
-    ```
-  </Tab>
-  <Tab title="pipx">
-    ```bash
-    pipx install strix-agent
-    ```
-  </Tab>
-</Tabs>
+```bash
+# Clone the repository
+git clone https://github.com/vizvasanlya/aegis.git
+cd aegis
+
+# Install dependencies
+uv sync
+```
 
 ## Configuration
 
 Set your LLM provider:
 
 ```bash
-export STRIX_LLM="openai/gpt-5.4"
+export AEGIS_LLM="openai/gpt-4o"
 export LLM_API_KEY="your-api-key"
 ```
 
 <Tip>
-For best results, use `openai/gpt-5.4`, `anthropic/claude-opus-4-6`, or `openai/gpt-5.2`.
+For best results, use `openai/gpt-4o`, `anthropic/claude-sonnet-4-6`, or `opencode/deepseek-v4`.
 </Tip>
 
 ## Run Your First Scan
 
 ```bash
-strix --target ./your-app
+aegis --target ./your-app
 ```
 
 <Note>
-First run pulls the Docker sandbox image automatically. Results are saved to `strix_runs/<run-name>`.
+First run pulls the Docker sandbox image automatically. Results are saved to `aegis_runs/<run-name>`.
 </Note>
 
 ## Target Types
 
-Strix accepts multiple target types:
+Aegis supports multiple target types:
 
 ```bash
 # Local codebase
-strix --target ./app-directory
+aegis --target ./app-directory
 
 # GitHub repository
-strix --target https://github.com/org/repo
+aegis --target https://github.com/org/repo
 
-# Live web application
-strix --target https://your-app.com
+# Web application
+aegis --target https://your-app.com
 
-# Multiple targets (white-box testing)
-strix -t https://github.com/org/repo -t https://your-app.com
+# Multiple targets
+aegis -t ./app -t https://api.your-app.com
 ```
 
-## Next Steps
+## Scan Modes
 
-<CardGroup cols={2}>
-  <Card title="CLI Options" icon="terminal" href="/usage/cli">
-    Explore all command-line options.
-  </Card>
-  <Card title="Scan Modes" icon="gauge" href="/usage/scan-modes">
-    Choose the right scan depth.
-  </Card>
-</CardGroup>
+```bash
+# Quick scan (10-15 min)
+aegis --target ./app --scan-mode quick
+
+# Standard scan (20-30 min)
+aegis --target ./app --scan-mode standard
+
+# Deep scan (30-60 min)
+aegis --target ./app --scan-mode deep
+```
+
+## Headless Mode
+
+Run without interactive UI:
+
+```bash
+aegis -n --target https://your-app.com
+```
