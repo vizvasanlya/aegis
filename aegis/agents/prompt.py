@@ -42,6 +42,11 @@ def _resolve_skills(
     ordered.append(f"scan_modes/{scan_mode}")
     ordered.append("tooling/agent_browser")
     ordered.append("tooling/browser_use")
+    ordered.append("tooling/exploit_validation")
+    ordered.append("tooling/vuln_chaining")
+    ordered.append("tooling/credential_stuffing")
+    ordered.append("tooling/api_fuzzing")
+    ordered.append("tooling/supply_chain")
     ordered.append("tooling/python")
     if is_root:
         ordered.append("coordination/root_agent")
