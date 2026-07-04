@@ -325,6 +325,10 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Interactive configuration mode (no target required)
+  aegis --interactive
+  aegis -i
+
   # Web application penetration test
   aegis --target https://example.com
 
@@ -479,6 +483,14 @@ Examples:
         help="Path to an OpenAPI/Swagger specification file (JSON or YAML). "
         "Endpoints from the spec are injected into the agent context to guide "
         "targeted API testing. Works with --target to test the live API.",
+    )
+
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="Start in interactive configuration mode (no target required). "
+        "Use slash commands to configure settings, view skills, and manage scans.",
     )
 
     args = parser.parse_args()
@@ -757,6 +769,12 @@ def main() -> None:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     args = parse_arguments()
+
+    # Handle interactive mode (no target required)
+    if args.interactive:
+        from aegis.interface.interactive import run_interactive_mode
+        run_interactive_mode()
+        return
 
     if args.config:
         apply_config_override(validate_config_file(args.config))
