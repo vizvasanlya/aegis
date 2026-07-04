@@ -113,6 +113,57 @@ def set_config(key: str, value: str) -> None:
     console.print(f"[green]{env_key} = {value}[/green]\n")
 
 
+def set_target(target: str) -> None:
+    """Set the scan target."""
+    global _current_target
+    _current_target = target
+    console.print(f"[green]Target set to: {target}[/green]")
+    console.print("[dim]Use /scan to start the scan[/dim]\n")
+
+
+def start_scan() -> None:
+    """Start scan with current settings."""
+    global _current_target
+    
+    if not _current_target:
+        console.print("[red]No target set. Use /target <url> first.[/red]\n")
+        return
+    
+    settings = load_settings()
+    if not settings.llm.model:
+        console.print("[red]No LLM model configured. Use /model <model> first.[/red]\n")
+        return
+    
+    console.print(f"[green]Starting scan of {_current_target}...[/green]")
+    console.print(f"[dim]Model: {settings.llm.model}[/dim]")
+    console.print("[dim]Press Ctrl+C to cancel[/dim]\n")
+    
+    # Run the scan
+    import asyncio
+    from aegis.interface.cli import run_cli
+    
+    class Args:
+        pass
+    
+    args = Args()
+    args.targets_info = [{"type": "web_application", "details": {"target_url": _current_target}, "original": _current_target}]
+    args.run_name = f"interactive-{_current_target.split('//')[-1].replace('/', '-')}"
+    args.scan_mode = "standard"
+    args.non_interactive = False
+    args.instruction = None
+    args.local_sources = []
+    args.diff_scope = {"active": False}
+    args.scope_mode = "auto"
+    args.diff_base = None
+    
+    try:
+        asyncio.run(run_cli(args))
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Scan cancelled.[/yellow]")
+    except Exception as e:
+        console.print(f"\n[red]Scan failed: {e}[/red]")
+
+
 def show_skills() -> None:
     """List available skills."""
     from aegis.skills import get_available_skills
@@ -203,55 +254,7 @@ def show_version() -> None:
     console.print(f"aegis {get_version()}\n")
 
 
-def set_target(target: str) -> None:
-    """Set the scan target."""
-    global _current_target
-    _current_target = target
-    console.print(f"[green]Target set to: {target}[/green]")
-    console.print("[dim]Use /scan to start the scan[/dim]\n")
-
-
-def start_scan() -> None:
-    """Start scan with current settings."""
-    global _current_target
-    
-    if not _current_target:
-        console.print("[red]No target set. Use /target <url> first.[/red]\n")
-        return
-    
-    settings = load_settings()
-    if not settings.llm.model:
-        console.print("[red]No LLM model configured. Use /model <model> first.[/red]\n")
-        return
-    
-    console.print(f"[green]Starting scan of {_current_target}...[/green]")
-    console.print(f"[dim]Model: {settings.llm.model}[/dim]")
-    console.print("[dim]Press Ctrl+C to cancel[/dim]\n")
-    
-    # Run the scan
-    import asyncio
-    from aegis.interface.cli import run_cli
-    
-    class Args:
-        pass
-    
-    args = Args()
-    args.targets_info = [{"type": "web_application", "details": {"target_url": _current_target}, "original": _current_target}]
-    args.run_name = f"interactive-{_current_target.split('//')[-1].replace('/', '-')}"
-    args.scan_mode = "standard"
-    args.non_interactive = False
-    args.instruction = None
-    args.local_sources = []
-    args.diff_scope = {"active": False}
-    args.scope_mode = "auto"
-    args.diff_base = None
-    
-    try:
-        asyncio.run(run_cli(args))
-    except KeyboardInterrupt:
-        console.print("\n[yellow]Scan cancelled.[/yellow]")
-    except Exception as e:
-        console.print(f"\n[red]Scan failed: {e}[/red]")
+def handle_command(cmd: str) -> bool:
     """Handle a slash command. Returns True if should exit."""
     parts = cmd.strip().split(maxsplit=1)
     command = parts[0].lower()
