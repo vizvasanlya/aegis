@@ -58,6 +58,7 @@ class ScanRequest(BaseModel):
     instruction: Optional[str] = None
     model: Optional[str] = None
     skills: Optional[list[str]] = None
+    credential_id: Optional[int] = None
 
 class SettingsUpdate(BaseModel):
     model: Optional[str] = None
@@ -71,10 +72,39 @@ class GitRepoRequest(BaseModel):
     scan_mode: str = "standard"
     instruction: Optional[str] = None
 
+class CredentialCreate(BaseModel):
+    name: str
+    site_url: str
+    credential_type: str  # "credentials", "api_key", "token", "cookie"
+    username: Optional[str] = None
+    password: Optional[str] = None
+    api_key: Optional[str] = None
+    token: Optional[str] = None
+    cookies: Optional[str] = None
+    notes: Optional[str] = None
+
 # ─── Active Scans ────────────────────────────────────────────────────────────
 
 active_scans: dict[str, dict[str, Any]] = {}
 scan_processes: dict[str, subprocess.Popen] = {}
+
+# ─── Credentials Storage ─────────────────────────────────────────────────────
+
+import base64
+import hashlib
+
+credentials_store: list[dict[str, Any]] = []
+
+def _encrypt_value(value: str) -> str:
+    """Simple obfuscation for demo. In production, use proper encryption."""
+    return base64.b64encode(value.encode()).decode()
+
+def _decrypt_value(value: str) -> str:
+    """Simple deobfuscation for demo."""
+    try:
+        return base64.b64decode(value.encode()).decode()
+    except:
+        return value
 
 # ─── Scan Management ─────────────────────────────────────────────────────────
 
@@ -82,6 +112,8 @@ scan_processes: dict[str, subprocess.Popen] = {}
 async def create_scan(request: ScanRequest) -> dict:
     """Create and start a new security scan."""
     import uuid
+    import asyncio
+    
     scan_id = f"scan-{uuid.uuid4().hex[:8]}"
     
     # Build command
@@ -99,22 +131,38 @@ async def create_scan(request: ScanRequest) -> dict:
         "status": "starting",
         "started_at": datetime.now().isoformat(),
         "command": cmd,
+        "pid": None,
     }
     
-    # Start scan process
-    try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        scan_processes[scan_id] = process
-        active_scans[scan_id]["status"] = "running"
-        active_scans[scan_id]["pid"] = process.pid
-    except Exception as e:
-        active_scans[scan_id]["status"] = "failed"
-        active_scans[scan_id]["error"] = str(e)
+    # Start scan process asynchronously
+    async def run_scan():
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            scan_processes[scan_id] = process
+            active_scans[scan_id]["status"] = "running"
+            active_scans[scan_id]["pid"] = process.pid
+            
+            # Wait for process to complete
+            stdout, _ = await process.communicate()
+            
+            # Check if scan created output
+            run_dir = Path("aegis_runs") / scan_id.replace("scan-", "")
+            if run_dir.exists():
+                active_scans[scan_id]["status"] = "completed"
+            else:
+                active_scans[scan_id]["status"] = "failed"
+                active_scans[scan_id]["error"] = "No output directory created"
+                
+        except Exception as e:
+            active_scans[scan_id]["status"] = "failed"
+            active_scans[scan_id]["error"] = str(e)
+    
+    # Start the scan in background
+    asyncio.create_task(run_scan())
     
     return {"scan_id": scan_id, "status": "started"}
 
@@ -125,7 +173,22 @@ async def list_scans() -> list[dict]:
     scans = []
     
     # Add active scans
-    for scan_id, info in active_scans.items():
+    for scan_id, info in list(active_scans.items()):
+        # Check if scan has completed by looking for output directory
+        run_name = scan_id.replace("scan-", "")
+        run_dir = Path("aegis_runs") / run_name
+        
+        if run_dir.exists() and (run_dir / "run.json").exists():
+            # Scan completed - update status
+            active_scans[scan_id]["status"] = "completed"
+        
+        # Check if process is still running
+        process = scan_processes.get(scan_id)
+        if process and process.returncode is not None:
+            # Process has finished
+            if active_scans[scan_id]["status"] == "running":
+                active_scans[scan_id]["status"] = "completed" if run_dir.exists() else "failed"
+        
         scans.append({
             "id": scan_id,
             "target": info["target"],
@@ -139,6 +202,9 @@ async def list_scans() -> list[dict]:
     if runs_dir.exists():
         for run_dir in runs_dir.iterdir():
             if not run_dir.is_dir():
+                continue
+            # Skip if already in active scans
+            if f"scan-{run_dir.name}" in active_scans:
                 continue
             run_json = run_dir / "run.json"
             if run_json.exists():
@@ -601,6 +667,135 @@ async def list_models() -> list[dict]:
         {"id": "opencode/mimo-v2.5-free", "name": "MiMo V2.5", "provider": "OpenCode"},
         {"id": "vertex_ai/gemini-2.5-pro", "name": "Gemini 2.5 Pro", "provider": "Google"},
     ]
+
+
+# ─── Credentials ─────────────────────────────────────────────────────────────
+
+@app.get("/api/credentials")
+async def list_credentials() -> list[dict]:
+    """List all stored credentials (without sensitive values)."""
+    return [
+        {
+            "id": cred["id"],
+            "name": cred["name"],
+            "site_url": cred["site_url"],
+            "credential_type": cred["credential_type"],
+            "has_username": bool(cred.get("username")),
+            "has_password": bool(cred.get("password")),
+            "has_api_key": bool(cred.get("api_key")),
+            "has_token": bool(cred.get("token")),
+            "notes": cred.get("notes", ""),
+            "created_at": cred.get("created_at"),
+        }
+        for cred in credentials_store
+    ]
+
+
+@app.post("/api/credentials")
+async def create_credential(data: CredentialCreate) -> dict:
+    """Create a new credential entry."""
+    import uuid
+    
+    cred_id = len(credentials_store) + 1
+    credential = {
+        "id": cred_id,
+        "name": data.name,
+        "site_url": data.site_url,
+        "credential_type": data.credential_type,
+        "username": _encrypt_value(data.username) if data.username else None,
+        "password": _encrypt_value(data.password) if data.password else None,
+        "api_key": _encrypt_value(data.api_key) if data.api_key else None,
+        "token": _encrypt_value(data.token) if data.token else None,
+        "cookies": _encrypt_value(data.cookies) if data.cookies else None,
+        "notes": data.notes,
+        "created_at": datetime.now().isoformat(),
+    }
+    credentials_store.append(credential)
+    
+    return {
+        "id": cred_id,
+        "name": data.name,
+        "status": "created"
+    }
+
+
+@app.get("/api/credentials/{cred_id}")
+async def get_credential(cred_id: int) -> dict:
+    """Get credential details (with decrypted values)."""
+    cred = next((c for c in credentials_store if c["id"] == cred_id), None)
+    if not cred:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    
+    return {
+        "id": cred["id"],
+        "name": cred["name"],
+        "site_url": cred["site_url"],
+        "credential_type": cred["credential_type"],
+        "username": _decrypt_value(cred["username"]) if cred.get("username") else None,
+        "password": _decrypt_value(cred["password"]) if cred.get("password") else None,
+        "api_key": _decrypt_value(cred["api_key"]) if cred.get("api_key") else None,
+        "token": _decrypt_value(cred["token"]) if cred.get("token") else None,
+        "cookies": _decrypt_value(cred["cookies"]) if cred.get("cookies") else None,
+        "notes": cred.get("notes", ""),
+    }
+
+
+@app.put("/api/credentials/{cred_id}")
+async def update_credential(cred_id: int, data: CredentialCreate) -> dict:
+    """Update an existing credential."""
+    cred = next((c for c in credentials_store if c["id"] == cred_id), None)
+    if not cred:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    
+    cred["name"] = data.name
+    cred["site_url"] = data.site_url
+    cred["credential_type"] = data.credential_type
+    cred["username"] = _encrypt_value(data.username) if data.username else None
+    cred["password"] = _encrypt_value(data.password) if data.password else None
+    cred["api_key"] = _encrypt_value(data.api_key) if data.api_key else None
+    cred["token"] = _encrypt_value(data.token) if data.token else None
+    cred["cookies"] = _encrypt_value(data.cookies) if data.cookies else None
+    cred["notes"] = data.notes
+    
+    return {"status": "updated"}
+
+
+@app.delete("/api/credentials/{cred_id}")
+async def delete_credential(cred_id: int) -> dict:
+    """Delete a credential."""
+    global credentials_store
+    credentials_store = [c for c in credentials_store if c["id"] != cred_id]
+    return {"status": "deleted"}
+
+
+@app.get("/api/credentials/{cred_id}/for-scan")
+async def get_credential_for_scan(cred_id: int) -> dict:
+    """Get credential formatted for use in a scan."""
+    cred = next((c for c in credentials_store if c["id"] == cred_id), None)
+    if not cred:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    
+    # Format for scan instruction
+    cred_type = cred["credential_type"]
+    username = _decrypt_value(cred["username"]) if cred.get("username") else None
+    password = _decrypt_value(cred["password"]) if cred.get("password") else None
+    token = _decrypt_value(cred["token"]) if cred.get("token") else None
+    
+    if cred_type == "credentials" and username and password:
+        instruction = f"Login to {cred['site_url']} with username: {username} and password: {password}"
+    elif cred_type == "api_key" and cred.get("api_key"):
+        api_key = _decrypt_value(cred["api_key"])
+        instruction = f"Use API key for {cred['site_url']}: {api_key}"
+    elif cred_type == "token" and token:
+        instruction = f"Use bearer token for {cred['site_url']}: {token}"
+    else:
+        instruction = f"Use credentials for {cred['site_url']}"
+    
+    return {
+        "credential_id": cred_id,
+        "site_url": cred["site_url"],
+        "instruction": instruction,
+    }
 
 
 # ─── Skills ──────────────────────────────────────────────────────────────────
