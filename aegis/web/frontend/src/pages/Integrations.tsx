@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { 
   Github, 
   Gitlab, 
-  Bitbucket,
+  Box,
   MessageSquare,
   Users,
   Check,
@@ -13,7 +13,7 @@ import {
 const codeProviders = [
   { id: 'github', name: 'GitHub', icon: Github, connected: false, color: 'text-white' },
   { id: 'gitlab', name: 'GitLab', icon: Gitlab, connected: false, color: 'text-orange-500' },
-  { id: 'bitbucket', name: 'Bitbucket', icon: Bitbucket, connected: false, color: 'text-blue-500' },
+  { id: 'bitbucket', name: 'Bitbucket', icon: Box, connected: false, color: 'text-blue-500' },
 ]
 
 const communication = [
