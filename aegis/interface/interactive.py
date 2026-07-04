@@ -307,16 +307,6 @@ def start_scan() -> None:
 
 def run_interactive_mode() -> None:
     """Run Aegis in interactive configuration mode."""
-    # Show welcome banner
-    banner = r"""
-[bold cyan]
-    ___      
-   /   \__   _____  __
-  / /\ / | / / _ \/_ /
- / /_// /|  /  __/ / /
- \____/_/ |_/\\___/_/ 
-[/bold cyan]"""
-    console.print(banner)
     console.print("[bold cyan]AEGIS[/bold cyan] [dim]v1.0 - AI Pentesting Platform[/dim]")
     console.print("[dim]Type /help for commands, or ask a security question.[/dim]\n")
     
