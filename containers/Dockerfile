@@ -96,8 +96,8 @@ RUN /home/pentester/.npm-global/bin/agent-browser doctor --offline --quick
 
 # Install browser-use for advanced browser automation
 USER pentester
-RUN pipx install browser-use && \
-    playwright install chromium --with-deps
+RUN python3 -m pip install --user browser-use && \
+    python3 -m playwright install chromium
 ENV BROWSER_USE_HEADLESS=true
 
 RUN set -eux; \
