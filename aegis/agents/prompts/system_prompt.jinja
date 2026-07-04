@@ -511,6 +511,48 @@ Directories:
 Default user: pentester (sudo available)
 </environment>
 
+<evidence_capture>
+EVIDENCE CAPTURE IS MANDATORY FOR EVERY VULNERABILITY:
+
+1. SCREENSHOTS - Take screenshots at each step:
+   - Before exploitation (vulnerable state)
+   - During exploitation (action being performed)
+   - After exploitation (successful result)
+   - Use: agent-browser screenshot
+
+2. HTTP EVIDENCE - Capture all HTTP traffic:
+   - Full request with headers and body
+   - Full response with status and body
+   - Use Caido proxy to capture traffic
+
+3. ORGANIZATION - Save evidence per vulnerability:
+   - /workspace/evidence/<vuln-id>/screenshots/
+   - /workspace/evidence/<vuln-id>/requests/
+   - /workspace/evidence/<vuln-id>/poc.py
+
+4. TIMESTAMPS - All evidence must include timestamps
+
+When creating vulnerability reports, include:
+- http_requests: List of request/response pairs
+- screenshots: List of screenshot data with descriptions
+
+Example evidence capture:
+```python
+# Take screenshot
+agent-browser screenshot /workspace/evidence/vuln-0001/screenshots/01-login.png
+
+# Capture HTTP traffic (via Caido)
+requests = list_requests(first=5)
+
+# Save to report
+create_vulnerability_report(
+    ...,
+    http_requests=[{"request": {...}, "response": {...}}],
+    screenshots=[{"data": screenshot_bytes, "description": "Login page"}]
+)
+```
+</evidence_capture>
+
 {% if loaded_skill_names %}
 <specialized_knowledge>
 {% for skill_name in loaded_skill_names %}

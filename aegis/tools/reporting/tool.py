@@ -167,6 +167,8 @@ async def _do_create(  # noqa: PLR0912
     cve: str | None,
     cwe: str | None,
     code_locations: list[dict[str, Any]] | None,
+    http_requests: list[dict[str, Any]] | None = None,
+    screenshots: list[dict[str, Any]] | None = None,
     agent_id: str | None = None,
     agent_name: str | None = None,
 ) -> dict[str, Any]:
@@ -278,6 +280,53 @@ async def _do_create(  # noqa: PLR0912
             agent_id=agent_id if isinstance(agent_id, str) else None,
             agent_name=agent_name if isinstance(agent_name, str) else None,
         )
+        
+        # Save evidence
+        try:
+            from aegis.tools.evidence_capture import get_evidence_capture
+            from aegis.core.paths import run_dir_for
+            
+            # Get scan directory from context
+            scan_id = inner.get("scan_id") or inner.get("agent_id", "unknown")
+            run_dir = run_dir_for(scan_id)
+            evidence = get_evidence_capture(str(run_dir))
+            
+            # Save HTTP request/response evidence
+            if http_requests:
+                for req in http_requests:
+                    evidence.save_http_evidence(
+                        report_id,
+                        request=req.get("request", {}),
+                        response=req.get("response", {}),
+                        description=req.get("description", "")
+                    )
+            
+            # Save screenshots
+            if screenshots:
+                for i, screenshot in enumerate(screenshots):
+                    evidence.save_screenshot(
+                        report_id,
+                        screenshot.get("data", b""),
+                        f"screenshot_{i:03d}.png",
+                        screenshot.get("description", "")
+                    )
+            
+            # Save PoC code
+            if poc_script_code:
+                evidence.save_poc(report_id, poc_script_code, "python")
+            
+            # Save findings summary
+            evidence.save_findings_summary(report_id, {
+                "title": title,
+                "severity": severity,
+                "cvss": cvss_score,
+                "target": target,
+                "endpoint": endpoint,
+            })
+            
+        except Exception as e:
+            logger.warning(f"Failed to save evidence: {e}")
+        
     except (ImportError, AttributeError) as e:
         logger.exception("create_vulnerability_report persistence failed")
         return {"success": False, "error": f"Failed to create vulnerability report: {e!s}"}
@@ -315,6 +364,8 @@ async def create_vulnerability_report(
     cve: str | None = None,
     cwe: str | None = None,
     code_locations: list[dict[str, Any]] | None = None,
+    http_requests: list[dict[str, Any]] | None = None,
+    screenshots: list[dict[str, Any]] | None = None,
 ) -> str:
     """File a vulnerability report — one report per fully-verified finding.
 
