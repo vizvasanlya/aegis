@@ -272,6 +272,90 @@ async def scan_git_repo(request: GitRepoRequest) -> dict:
     return {"scan_id": scan_id, "status": "started"}
 
 
+# ─── Repos ────────────────────────────────────────────────────────────────────
+
+repos_store: list[dict] = []
+
+@app.get("/api/repos")
+async def list_repos() -> list[dict]:
+    """List all connected repositories."""
+    return repos_store
+
+
+@app.post("/api/repos")
+async def add_repo(data: dict) -> dict:
+    """Add a new repository."""
+    repo_url = data.get("url", "")
+    if not repo_url:
+        raise HTTPException(status_code=400, detail="URL required")
+    
+    # Determine provider
+    provider = "gitlab" if "gitlab" in repo_url else "github"
+    name = repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+    
+    repo = {
+        "id": len(repos_store) + 1,
+        "name": name,
+        "url": repo_url,
+        "provider": provider,
+        "status": "connected",
+        "last_scan": None,
+        "findings": 0,
+    }
+    repos_store.append(repo)
+    return repo
+
+
+@app.delete("/api/repos/{repo_id}")
+async def delete_repo(repo_id: int) -> dict:
+    """Remove a repository."""
+    global repos_store
+    repos_store = [r for r in repos_store if r["id"] != repo_id]
+    return {"status": "deleted"}
+
+
+@app.post("/api/repos/{repo_id}/scan")
+async def scan_repo(repo_id: int) -> dict:
+    """Trigger a scan for a repository."""
+    repo = next((r for r in repos_store if r["id"] == repo_id), None)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+    
+    # Trigger scan using the same logic as git scan
+    import uuid
+    scan_id = f"repo-{uuid.uuid4().hex[:8]}"
+    
+    cmd = ["aegis", "-n", "--target", repo["url"], "--scan-mode", "standard"]
+    
+    active_scans[scan_id] = {
+        "id": scan_id,
+        "target": repo["url"],
+        "scan_mode": "standard",
+        "status": "starting",
+        "started_at": datetime.now().isoformat(),
+        "type": "repository",
+    }
+    
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        scan_processes[scan_id] = process
+        active_scans[scan_id]["status"] = "running"
+        active_scans[scan_id]["pid"] = process.pid
+        
+        # Update repo last scan
+        repo["last_scan"] = datetime.now().isoformat()
+    except Exception as e:
+        active_scans[scan_id]["status"] = "failed"
+        active_scans[scan_id]["error"] = str(e)
+    
+    return {"scan_id": scan_id, "status": "started"}
+
+
 # ─── Settings ────────────────────────────────────────────────────────────────
 
 @app.get("/api/settings")
