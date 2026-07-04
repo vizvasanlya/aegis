@@ -47,6 +47,11 @@ def _resolve_skills(
     ordered.append("tooling/credential_stuffing")
     ordered.append("tooling/api_fuzzing")
     ordered.append("tooling/supply_chain")
+    ordered.append("vulnerabilities/graphql/advanced")
+    ordered.append("vulnerabilities/websocket/testing")
+    ordered.append("vulnerabilities/grpc/testing")
+    ordered.append("vulnerabilities/network/testing")
+    ordered.append("vulnerabilities/cloud_metadata/exploitation")
     ordered.append("tooling/python")
     if is_root:
         ordered.append("coordination/root_agent")
