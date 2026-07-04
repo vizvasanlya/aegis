@@ -196,12 +196,11 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 RUN mkdir -p /workspace && chown -R pentester:pentester /workspace /app
 
 USER pentester
-RUN python3 -m venv /app/.venv && \
+RUN pipx install websocket-client && \
+    pipx install grpcio-tools && \
+    python3 -m pip install --user grpcio protobuf && \
+    python3 -m venv /app/.venv && \
     /app/.venv/bin/pip install --no-cache-dir caido-sdk-client && \
-    /app/.venv/bin/pip install --no-cache-dir websocket-client && \
-    /app/.venv/bin/pip install --no-cache-dir grpcio && \
-    /app/.venv/bin/pip install --no-cache-dir grpcio-tools && \
-    /app/.venv/bin/pip install --no-cache-dir protobuf && \
     /app/.venv/bin/pip install --no-cache-dir -r /home/pentester/tools/jwt_tool/requirements.txt && \
     printf '%s\n' \
         '#!/bin/bash' \
@@ -210,7 +209,7 @@ RUN python3 -m venv /app/.venv && \
     chmod +x /home/pentester/.local/bin/jwt_tool
 
 COPY --chown=pentester:pentester aegis/tools/proxy/caido_api.py /opt/aegis-python/caido_api.py
-ENV PYTHONPATH=/opt/aegis-python:/app/.venv/lib/python3.12/site-packages
+ENV PYTHONPATH=/opt/aegis-python
 
 RUN echo 'export PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.npm-global/bin:$PATH"' >> /home/pentester/.bashrc && \
     echo 'export PATH="/home/pentester/go/bin:/home/pentester/.local/bin:/home/pentester/.npm-global/bin:$PATH"' >> /home/pentester/.profile
