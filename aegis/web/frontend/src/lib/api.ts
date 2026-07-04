@@ -27,6 +27,14 @@ export const api = {
   listVulnerabilities: () => fetchApi<any[]>('/vulnerabilities'),
   getScanVulnerabilities: (scanId: string) => fetchApi<any[]>(`/scans/${scanId}/vulnerabilities`),
   
+  // Credentials
+  listCredentials: () => fetchApi<any[]>('/credentials'),
+  createCredential: (data: any) => fetchApi<any>('/credentials', { method: 'POST', body: JSON.stringify(data) }),
+  getCredential: (id: number) => fetchApi<any>(`/credentials/${id}`),
+  updateCredential: (id: number, data: any) => fetchApi<any>(`/credentials/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCredential: (id: number) => fetchApi<any>(`/credentials/${id}`, { method: 'DELETE' }),
+  getCredentialForScan: (id: number) => fetchApi<any>(`/credentials/${id}/for-scan`),
+  
   // Repos
   listRepos: () => fetchApi<any[]>('/repos'),
   addRepo: (data: any) => fetchApi<any>('/repos', { method: 'POST', body: JSON.stringify(data) }),

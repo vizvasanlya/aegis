@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Pentests from './pages/Pentests'
 import PentestDetail from './pages/PentestDetail'
 import Vulnerabilities from './pages/Vulnerabilities'
+import Credentials from './pages/Credentials'
 import GitRepos from './pages/GitRepos'
 import Integrations from './pages/Integrations'
 import KnowledgeBase from './pages/KnowledgeBase'
@@ -21,6 +22,7 @@ function App() {
             <Route path="/pentests" element={<Pentests />} />
             <Route path="/pentest/:id" element={<PentestDetail />} />
             <Route path="/vulnerabilities" element={<Vulnerabilities />} />
+            <Route path="/credentials" element={<Credentials />} />
             <Route path="/git-repos" element={<GitRepos />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/knowledge" element={<KnowledgeBase />} />

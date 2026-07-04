@@ -7,7 +7,8 @@ import {
   BookOpen,
   Settings,
   Terminal,
-  Scan
+  Scan,
+  Key
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -23,6 +24,7 @@ const navSections = [
     items: [
       { path: '/pentests', label: 'Pentests', icon: Scan },
       { path: '/vulnerabilities', label: 'Vulnerabilities', icon: Shield },
+      { path: '/credentials', label: 'Credentials', icon: Key },
       { path: '/logs', label: 'Logs', icon: Terminal },
     ],
   },
