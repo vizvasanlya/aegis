@@ -1,15 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, 
-  Scan, 
   Shield, 
-  Plus, 
   Github, 
   Plug,
   BookOpen,
   Settings,
   Terminal,
-  ChevronRight
+  Scan
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -23,8 +21,7 @@ const navSections = [
   {
     title: 'Security',
     items: [
-      { path: '/new-scan', label: 'New Scan', icon: Plus },
-      { path: '/scans', label: 'Scans', icon: Scan },
+      { path: '/pentests', label: 'Pentests', icon: Scan },
       { path: '/vulnerabilities', label: 'Vulnerabilities', icon: Shield },
       { path: '/logs', label: 'Logs', icon: Terminal },
     ],
@@ -73,7 +70,8 @@ export default function Sidebar() {
             <ul className="space-y-1">
               {section.items.map((item) => {
                 const Icon = item.icon
-                const isActive = location.pathname === item.path
+                const isActive = location.pathname === item.path || 
+                  (item.path === '/pentests' && location.pathname.startsWith('/pentest'))
                 return (
                   <li key={item.path}>
                     <Link

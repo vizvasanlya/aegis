@@ -1,57 +1,100 @@
 import { useEffect, useState } from 'react'
-import { Shield, AlertTriangle, XCircle, Filter } from 'lucide-react'
+import { 
+  Shield, 
+  AlertTriangle, 
+  XCircle,
+  Search,
+  Loader2,
+  Filter
+} from 'lucide-react'
 import { api } from '../lib/api'
 
 export default function Vulnerabilities() {
   const [vulns, setVulns] = useState<any[]>([])
-  const [filter, setFilter] = useState<string>('all')
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    api.listVulnerabilities().then(setVulns)
+    api.listVulnerabilities().then(data => {
+      setVulns(data)
+      setLoading(false)
+    })
   }, [])
 
-  const filtered = filter === 'all' 
-    ? vulns 
-    : vulns.filter(v => v.severity === filter)
+  const filtered = vulns
+    .filter((v: any) => filter === 'all' || v.severity === filter)
+    .filter((v: any) => 
+      v.title?.toLowerCase().includes(search.toLowerCase()) ||
+      v.description?.toLowerCase().includes(search.toLowerCase())
+    )
 
-  const stats = {
-    critical: vulns.filter(v => v.severity === 'critical').length,
-    high: vulns.filter(v => v.severity === 'high').length,
-    medium: vulns.filter(v => v.severity === 'medium').length,
-    low: vulns.filter(v => v.severity === 'low').length,
+  const counts = {
+    all: vulns.length,
+    critical: vulns.filter((v: any) => v.severity === 'critical').length,
+    high: vulns.filter((v: any) => v.severity === 'high').length,
+    medium: vulns.filter((v: any) => v.severity === 'medium').length,
+    low: vulns.filter((v: any) => v.severity === 'low').length,
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Vulnerabilities</h1>
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-white">Vulnerabilities</h1>
+        <p className="mt-1 text-gray-400">All findings across all pentests</p>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search vulnerabilities..."
+            className="w-full rounded-xl border border-gray-800 bg-gray-900/50 py-2.5 pl-12 pr-4 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+          />
+        </div>
         <div className="flex gap-2">
-          {['all', 'critical', 'high', 'medium', 'low'].map((f) => (
+          {(['all', 'critical', 'high', 'medium', 'low'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 filter === f
                   ? 'bg-cyan-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
               }`}
             >
-              {f === 'all' ? `All (${vulns.length})` : `${f} (${stats[f as keyof typeof stats]})`}
+              {f === 'all' ? `All (${counts.all})` : `${f} (${counts[f]})`}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="space-y-3">
-        {filtered.map((vuln) => (
-          <VulnRow key={`${vuln.scan_id}-${vuln.id}`} vuln={vuln} />
-        ))}
-        {filtered.length === 0 && (
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-12 text-center text-gray-500">
-            No vulnerabilities found
-          </div>
-        )}
-      </div>
+      {/* Vulnerability List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-2xl border border-gray-800 bg-gray-900/50 py-20 text-center">
+          <Shield className="mx-auto h-16 w-16 text-gray-700" />
+          <h3 className="mt-4 text-lg font-medium text-gray-400">
+            {search || filter !== 'all' ? 'No matching vulnerabilities' : 'No vulnerabilities found'}
+          </h3>
+          <p className="mt-2 text-sm text-gray-500">
+            Run a pentest to discover security issues
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((vuln: any, idx: number) => (
+            <VulnRow key={`${vuln.scan_id}-${vuln.id || idx}`} vuln={vuln} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -59,40 +102,49 @@ export default function Vulnerabilities() {
 function VulnRow({ vuln }: { vuln: any }) {
   const [expanded, setExpanded] = useState(false)
 
-  const severityConfig: Record<string, { bg: string; text: string; icon: any }> = {
-    critical: { bg: 'bg-red-900/30', text: 'text-red-400', icon: XCircle },
-    high: { bg: 'bg-orange-900/30', text: 'text-orange-400', icon: AlertTriangle },
-    medium: { bg: 'bg-yellow-900/30', text: 'text-yellow-400', icon: Shield },
-    low: { bg: 'bg-blue-900/30', text: 'text-blue-400', icon: Shield },
+  const severityConfig: Record<string, { bg: string; dot: string; text: string }> = {
+    critical: { bg: 'bg-red-950/50', dot: 'bg-red-500', text: 'text-red-400' },
+    high: { bg: 'bg-orange-950/50', dot: 'bg-orange-500', text: 'text-orange-400' },
+    medium: { bg: 'bg-yellow-950/50', dot: 'bg-yellow-500', text: 'text-yellow-400' },
+    low: { bg: 'bg-blue-950/50', dot: 'bg-blue-500', text: 'text-blue-400' },
   }
 
   const config = severityConfig[vuln.severity] || severityConfig.low
-  const Icon = config.icon
 
   return (
-    <div className={`rounded-xl border border-gray-800 ${config.bg}`}>
+    <div className={`rounded-xl border border-gray-800 ${config.bg} overflow-hidden`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-4 p-4 text-left"
       >
-        <Icon className={`h-5 w-5 ${config.text}`} />
-        <div className="flex-1">
-          <p className="font-medium">{vuln.title}</p>
-          <p className="text-sm text-gray-400">{vuln.scan_id}</p>
+        <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${config.dot}`} />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-white truncate">{vuln.title}</p>
+          <p className="text-sm text-gray-400 truncate mt-0.5">{vuln.scan_id}</p>
         </div>
-        <span className="rounded bg-gray-800 px-2 py-1 text-xs font-medium">
-          {vuln.severity}
-        </span>
-        {vuln.cvss && (
-          <span className="text-sm text-gray-400">{vuln.cvss}</span>
-        )}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {vuln.cvss && (
+            <span className="text-sm text-gray-400">{vuln.cvss}</span>
+          )}
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            vuln.severity === 'critical' ? 'bg-red-900/50 text-red-400' :
+            vuln.severity === 'high' ? 'bg-orange-900/50 text-orange-400' :
+            vuln.severity === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
+            'bg-blue-900/50 text-blue-400'
+          }`}>
+            {vuln.severity}
+          </span>
+        </div>
       </button>
 
       {expanded && (
-        <div className="border-t border-gray-800 p-4">
-          <p className="text-sm text-gray-300">{vuln.description}</p>
+        <div className="border-t border-gray-800/50 px-5 py-4">
+          <p className="text-sm text-gray-300 leading-relaxed">{vuln.description}</p>
           {vuln.endpoint && (
-            <p className="mt-2 text-sm text-gray-400">Endpoint: {vuln.endpoint}</p>
+            <p className="mt-3 text-sm text-gray-400">
+              <span className="text-gray-500">Endpoint:</span>{' '}
+              <code className="rounded bg-gray-800 px-1.5 py-0.5 text-cyan-400">{vuln.endpoint}</code>
+            </p>
           )}
         </div>
       )}
