@@ -36,6 +36,11 @@ export const api = {
   // Git
   scanGitRepo: (data: any) => fetchApi<any>('/git/scan', { method: 'POST', body: JSON.stringify(data) }),
   
+  // Auth / OAuth
+  getAuthStatus: (provider: string) => fetchApi<any>(`/auth/${provider}/status`),
+  disconnectAuth: (provider: string) => fetchApi<any>(`/auth/${provider}`, { method: 'DELETE' }),
+  listProviderRepos: (provider: string) => fetchApi<any[]>(`/auth/${provider}/repos`),
+  
   // Settings
   getSettings: () => fetchApi<any>('/settings'),
   updateSettings: (data: any) => fetchApi<any>('/settings', { method: 'PUT', body: JSON.stringify(data) }),

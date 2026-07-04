@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react'
 import { 
   Shield, 
-  AlertTriangle, 
-  XCircle,
   Search,
-  Loader2,
-  Filter
+  Loader2
 } from 'lucide-react'
 import { api } from '../lib/api'
+import VulnerabilityModal from '../components/VulnerabilityModal'
 
 export default function Vulnerabilities() {
   const [vulns, setVulns] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [selectedVuln, setSelectedVuln] = useState<any>(null)
 
   useEffect(() => {
     api.listVulnerabilities().then(data => {
@@ -84,48 +83,51 @@ export default function Vulnerabilities() {
           <h3 className="mt-4 text-lg font-medium text-gray-400">
             {search || filter !== 'all' ? 'No matching vulnerabilities' : 'No vulnerabilities found'}
           </h3>
-          <p className="mt-2 text-sm text-gray-500">
-            Run a pentest to discover security issues
-          </p>
+          <p className="mt-2 text-sm text-gray-500">Run a pentest to discover security issues</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((vuln: any, idx: number) => (
-            <VulnRow key={`${vuln.scan_id}-${vuln.id || idx}`} vuln={vuln} />
+            <VulnRow 
+              key={`${vuln.scan_id}-${vuln.id || idx}`} 
+              vuln={vuln} 
+              onClick={() => setSelectedVuln(vuln)} 
+            />
           ))}
         </div>
+      )}
+
+      {/* Modal */}
+      {selectedVuln && (
+        <VulnerabilityModal vuln={selectedVuln} onClose={() => setSelectedVuln(null)} />
       )}
     </div>
   )
 }
 
-function VulnRow({ vuln }: { vuln: any }) {
-  const [expanded, setExpanded] = useState(false)
-
-  const severityConfig: Record<string, { bg: string; dot: string; text: string }> = {
-    critical: { bg: 'bg-red-950/50', dot: 'bg-red-500', text: 'text-red-400' },
-    high: { bg: 'bg-orange-950/50', dot: 'bg-orange-500', text: 'text-orange-400' },
-    medium: { bg: 'bg-yellow-950/50', dot: 'bg-yellow-500', text: 'text-yellow-400' },
-    low: { bg: 'bg-blue-950/50', dot: 'bg-blue-500', text: 'text-blue-400' },
+function VulnRow({ vuln, onClick }: { vuln: any; onClick: () => void }) {
+  const severityConfig: Record<string, { bg: string; dot: string }> = {
+    critical: { bg: 'bg-red-950/50', dot: 'bg-red-500' },
+    high: { bg: 'bg-orange-950/50', dot: 'bg-orange-500' },
+    medium: { bg: 'bg-yellow-950/50', dot: 'bg-yellow-500' },
+    low: { bg: 'bg-blue-950/50', dot: 'bg-blue-500' },
   }
 
   const config = severityConfig[vuln.severity] || severityConfig.low
 
   return (
-    <div className={`rounded-xl border border-gray-800 ${config.bg} overflow-hidden`}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-4 p-4 text-left"
-      >
+    <button
+      onClick={onClick}
+      className={`w-full rounded-xl border border-gray-800 ${config.bg} p-4 text-left transition-all hover:border-gray-700`}
+    >
+      <div className="flex items-center gap-4">
         <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${config.dot}`} />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-white truncate">{vuln.title}</p>
           <p className="text-sm text-gray-400 truncate mt-0.5">{vuln.scan_id}</p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          {vuln.cvss && (
-            <span className="text-sm text-gray-400">{vuln.cvss}</span>
-          )}
+          {vuln.cvss && <span className="text-sm text-gray-400">{vuln.cvss}</span>}
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
             vuln.severity === 'critical' ? 'bg-red-900/50 text-red-400' :
             vuln.severity === 'high' ? 'bg-orange-900/50 text-orange-400' :
@@ -135,19 +137,7 @@ function VulnRow({ vuln }: { vuln: any }) {
             {vuln.severity}
           </span>
         </div>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-gray-800/50 px-5 py-4">
-          <p className="text-sm text-gray-300 leading-relaxed">{vuln.description}</p>
-          {vuln.endpoint && (
-            <p className="mt-3 text-sm text-gray-400">
-              <span className="text-gray-500">Endpoint:</span>{' '}
-              <code className="rounded bg-gray-800 px-1.5 py-0.5 text-cyan-400">{vuln.endpoint}</code>
-            </p>
-          )}
-        </div>
-      )}
-    </div>
+      </div>
+    </button>
   )
 }

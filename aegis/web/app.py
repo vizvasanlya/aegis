@@ -356,6 +356,205 @@ async def scan_repo(repo_id: int) -> dict:
     return {"scan_id": scan_id, "status": "started"}
 
 
+# ─── Git OAuth Integration ───────────────────────────────────────────────────
+
+# OAuth configuration storage (in production, use database)
+oauth_configs: dict[str, dict[str, str]] = {}
+oauth_tokens: dict[str, dict[str, Any]] = {}
+
+class OAuthConfig(BaseModel):
+    provider: str  # "github" or "gitlab"
+    client_id: str
+    client_secret: str
+    redirect_uri: str = "http://localhost:8000/api/auth/callback"
+
+class OAuthCallback(BaseModel):
+    code: str
+    state: str
+
+@app.get("/api/auth/{provider}/config")
+async def get_oauth_config(provider: str) -> dict:
+    """Get OAuth configuration status for a provider."""
+    config = oauth_configs.get(provider)
+    if config:
+        return {
+            "provider": provider,
+            "configured": True,
+            "client_id": config["client_id"][:8] + "...",  # Masked
+        }
+    return {"provider": provider, "configured": False}
+
+@app.post("/api/auth/{provider}/config")
+async def set_oauth_config(provider: str, config: OAuthConfig) -> dict:
+    """Set OAuth configuration for a provider."""
+    oauth_configs[provider] = {
+        "client_id": config.client_id,
+        "client_secret": config.client_secret,
+        "redirect_uri": config.redirect_uri,
+    }
+    return {"status": "configured", "provider": provider}
+
+@app.get("/api/auth/{provider}/authorize")
+async def authorize_provider(provider: str) -> dict:
+    """Get authorization URL for OAuth flow."""
+    config = oauth_configs.get(provider)
+    if not config:
+        raise HTTPException(status_code=400, detail=f"{provider} not configured")
+    
+    import secrets
+    state = secrets.token_urlsafe(32)
+    
+    if provider == "github":
+        auth_url = (
+            f"https://github.com/login/oauth/authorize"
+            f"?client_id={config['client_id']}"
+            f"&redirect_uri={config['redirect_uri']}"
+            f"&scope=repo,user"
+            f"&state={state}"
+        )
+    elif provider == "gitlab":
+        auth_url = (
+            f"https://gitlab.com/oauth/authorize"
+            f"?client_id={config['client_id']}"
+            f"&redirect_uri={config['redirect_uri']}"
+            f"&response_type=code"
+            f"&scope=api+read_repository"
+            f"&state={state}"
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    
+    # Store state for validation
+    oauth_tokens[f"state:{state}"] = {"provider": provider}
+    
+    return {"auth_url": auth_url, "state": state}
+
+@app.get("/api/auth/callback")
+async def oauth_callback(code: str, state: str) -> dict:
+    """Handle OAuth callback and exchange code for token."""
+    # Validate state
+    state_data = oauth_tokens.get(f"state:{state}")
+    if not state_data:
+        raise HTTPException(status_code=400, detail="Invalid state parameter")
+    
+    provider = state_data["provider"]
+    config = oauth_configs.get(provider)
+    if not config:
+        raise HTTPException(status_code=400, detail=f"{provider} not configured")
+    
+    # Exchange code for token
+    import httpx
+    
+    if provider == "github":
+        token_url = "https://github.com/login/oauth/access_token"
+        token_data = {
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "code": code,
+            "redirect_uri": config["redirect_uri"],
+        }
+        headers = {"Accept": "application/json"}
+    elif provider == "gitlab":
+        token_url = "https://gitlab.com/oauth/token"
+        token_data = {
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": config["redirect_uri"],
+        }
+        headers = {}
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(token_url, data=token_data, headers=headers)
+        token_response = response.json()
+    
+    if "access_token" not in token_response:
+        raise HTTPException(status_code=400, detail="Failed to get access token")
+    
+    # Store token
+    oauth_tokens[provider] = {
+        "access_token": token_response["access_token"],
+        "token_type": token_response.get("token_type", "bearer"),
+        "scope": token_response.get("scope", ""),
+    }
+    
+    # Clean up state
+    del oauth_tokens[f"state:{state}"]
+    
+    return {"status": "connected", "provider": provider}
+
+@app.get("/api/auth/{provider}/status")
+async def get_auth_status(provider: str) -> dict:
+    """Check if provider is connected."""
+    token = oauth_tokens.get(provider)
+    if token:
+        return {"provider": provider, "connected": True, "scope": token.get("scope", "")}
+    return {"provider": provider, "connected": False}
+
+@app.delete("/api/auth/{provider}")
+async def disconnect_provider(provider: str) -> dict:
+    """Disconnect a provider."""
+    if provider in oauth_tokens:
+        del oauth_tokens[provider]
+    return {"status": "disconnected", "provider": provider}
+
+@app.get("/api/auth/{provider}/repos")
+async def list_provider_repos(provider: str) -> list[dict]:
+    """List repositories from connected provider."""
+    token = oauth_tokens.get(provider)
+    if not token:
+        raise HTTPException(status_code=401, detail=f"{provider} not connected")
+    
+    import httpx
+    
+    access_token = token["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    if provider == "github":
+        url = "https://api.github.com/user/repos?sort=updated&per_page=30"
+    elif provider == "gitlab":
+        url = "https://gitlab.com/api/v4/projects?membership=true&order_by=last_activity_at&per_page=30"
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        repos = response.json()
+    
+    # Normalize response
+    normalized = []
+    for repo in repos:
+        if provider == "github":
+            normalized.append({
+                "id": repo["id"],
+                "name": repo["name"],
+                "full_name": repo["full_name"],
+                "url": repo["html_url"],
+                "clone_url": repo["clone_url"],
+                "private": repo["private"],
+                "description": repo.get("description", ""),
+                "language": repo.get("language"),
+                "updated_at": repo.get("updated_at"),
+            })
+        elif provider == "gitlab":
+            normalized.append({
+                "id": repo["id"],
+                "name": repo["name"],
+                "full_name": repo["path_with_namespace"],
+                "url": repo["web_url"],
+                "clone_url": repo["http_url_to_repo"],
+                "private": repo["visibility"] == "private",
+                "description": repo.get("description", ""),
+                "language": repo.get("language"),
+                "updated_at": repo.get("last_activity_at"),
+            })
+    
+    return normalized
+
+
 # ─── Settings ────────────────────────────────────────────────────────────────
 
 @app.get("/api/settings")
