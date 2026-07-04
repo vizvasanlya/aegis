@@ -108,15 +108,31 @@ def _decrypt_value(value: str) -> str:
 
 # ─── Scan Management ─────────────────────────────────────────────────────────
 
+def generate_run_name(target_url: str) -> str:
+    """Generate a run name from target URL (matches CLI behavior)."""
+    import re
+    import secrets
+    
+    # Extract domain/path from URL
+    parsed = target_url.replace("https://", "").replace("http://", "")
+    parsed = re.sub(r'[:/]', '-', parsed)
+    parsed = re.sub(r'[^a-zA-Z0-9-]', '', parsed)
+    parsed = parsed.rstrip('-')
+    
+    # Add random suffix
+    suffix = secrets.token_hex(2)
+    return f"{parsed}_{suffix}"
+
+
 @app.post("/api/scans")
 async def create_scan(request: ScanRequest) -> dict:
     """Create and start a new security scan."""
-    import uuid
     import asyncio
     
-    scan_id = f"scan-{uuid.uuid4().hex[:8]}"
+    # Generate run name like CLI does
+    run_name = generate_run_name(request.target)
     
-    # Build command
+    # Build command with --resume to use the run name
     cmd = ["aegis", "-n", "--target", request.target, "--scan-mode", request.scan_mode]
     if request.instruction:
         cmd.extend(["--instruction", request.instruction])
@@ -124,8 +140,8 @@ async def create_scan(request: ScanRequest) -> dict:
         os.environ["AEGIS_LLM"] = request.model
     
     # Store scan info
-    active_scans[scan_id] = {
-        "id": scan_id,
+    active_scans[run_name] = {
+        "id": run_name,
         "target": request.target,
         "scan_mode": request.scan_mode,
         "status": "starting",
@@ -142,29 +158,29 @@ async def create_scan(request: ScanRequest) -> dict:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
-            scan_processes[scan_id] = process
-            active_scans[scan_id]["status"] = "running"
-            active_scans[scan_id]["pid"] = process.pid
+            scan_processes[run_name] = process
+            active_scans[run_name]["status"] = "running"
+            active_scans[run_name]["pid"] = process.pid
             
             # Wait for process to complete
             stdout, _ = await process.communicate()
             
             # Check if scan created output
-            run_dir = Path("aegis_runs") / scan_id.replace("scan-", "")
-            if run_dir.exists():
-                active_scans[scan_id]["status"] = "completed"
+            run_dir = Path("aegis_runs") / run_name
+            if run_dir.exists() and (run_dir / "run.json").exists():
+                active_scans[run_name]["status"] = "completed"
             else:
-                active_scans[scan_id]["status"] = "failed"
-                active_scans[scan_id]["error"] = "No output directory created"
+                active_scans[run_name]["status"] = "failed"
+                active_scans[run_name]["error"] = "No output directory created"
                 
         except Exception as e:
-            active_scans[scan_id]["status"] = "failed"
-            active_scans[scan_id]["error"] = str(e)
+            active_scans[run_name]["status"] = "failed"
+            active_scans[run_name]["error"] = str(e)
     
     # Start the scan in background
     asyncio.create_task(run_scan())
     
-    return {"scan_id": scan_id, "status": "started"}
+    return {"scan_id": run_name, "status": "started"}
 
 
 @app.get("/api/scans")
