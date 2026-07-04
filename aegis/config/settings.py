@@ -43,7 +43,7 @@ class RuntimeSettings(BaseSettings):
     model_config = _BASE_CONFIG
 
     image: str = Field(
-        default="ghcr.io/vizvasanlya/aegis-sandbox:latest",
+        default="ghcr.io/vizvasanlya/aegis-sandbox:v1.1.0",
         alias="AEGIS_IMAGE",
     )
     backend: str = Field(default="docker", alias="AEGIS_RUNTIME_BACKEND")
