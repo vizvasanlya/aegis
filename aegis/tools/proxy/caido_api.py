@@ -679,4 +679,144 @@ __all__ = [
     "scope_rules",
     "view_request",
     "view_sitemap_entry",
+    "detect_login_endpoints",
+    "login_with_credentials",
+    "extract_auth_tokens",
+    "build_auth_headers",
 ]
+
+
+# ─── Authentication Helpers ──────────────────────────────────────────────────
+
+import base64
+import re
+
+
+def detect_login_endpoints(target_url: str) -> list[str]:
+    """Detect common login endpoint patterns."""
+    common_paths = [
+        "/login", "/signin", "/auth/login", "/api/login",
+        "/api/auth/login", "/api/v1/auth/login", "/user/login",
+        "/admin/login", "/wp-login.php",
+    ]
+    return [f"{target_url.rstrip('/')}{path}" for path in common_paths]
+
+
+def login_with_credentials(
+    url: str,
+    credentials: dict[str, str],
+    method: str = "POST",
+) -> dict[str, Any]:
+    """Login with credentials and return tokens.
+    
+    Args:
+        url: Login endpoint URL
+        credentials: Dict with username/password or email/password
+        method: HTTP method (POST or GET)
+    
+    Returns:
+        Dict with token, refresh_token, cookies, headers
+    """
+    import requests
+    
+    # Try JSON login first
+    resp = requests.request(method, url, json=credentials, timeout=10)
+    
+    result = {"success": False, "token": None, "cookies": {}, "headers": {}}
+    
+    if resp.status_code in (200, 201):
+        result["success"] = True
+        
+        # Try to extract token from JSON response
+        try:
+            data = resp.json()
+            # Common token field names
+            for key in ["token", "access_token", "jwt", "accessToken", "data"]:
+                if key in data:
+                    value = data[key]
+                    if isinstance(value, dict):
+                        # Nested response like {"data": {"token": "..."}}
+                        for subkey in ["token", "access_token", "jwt"]:
+                            if subkey in value:
+                                result["token"] = value[subkey]
+                                break
+                    elif isinstance(value, str) and len(value) > 20:
+                        result["token"] = value
+                        break
+        except:
+            pass
+        
+        # Extract refresh token
+        try:
+            data = resp.json()
+            for key in ["refresh_token", "refreshToken"]:
+                if key in data:
+                    result["refresh_token"] = data[key]
+                    break
+        except:
+            pass
+        
+        # Extract cookies
+        result["cookies"] = dict(resp.cookies)
+    
+    return result
+
+
+def extract_auth_tokens(response_body: str) -> dict[str, str]:
+    """Extract authentication tokens from response body."""
+    tokens = {}
+    
+    try:
+        data = json.loads(response_body)
+        
+        # JWT token
+        for key in ["token", "access_token", "jwt", "accessToken"]:
+            if key in data:
+                value = data[key]
+                if isinstance(value, str) and len(value) > 20:
+                    tokens["jwt"] = value
+                    break
+        
+        # Refresh token
+        for key in ["refresh_token", "refreshToken"]:
+            if key in data:
+                tokens["refresh_token"] = data[key]
+                break
+    except:
+        pass
+    
+    # Try regex for JWT
+    if "jwt" not in tokens:
+        jwt_pattern = r'eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*'
+        match = re.search(jwt_pattern, response_body)
+        if match:
+            tokens["jwt"] = match.group(0)
+    
+    return tokens
+
+
+def build_auth_headers(token: str = None, api_key: str = None) -> dict[str, str]:
+    """Build authentication headers."""
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    elif api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def decode_jwt_payload(token: str) -> dict[str, Any]:
+    """Decode JWT payload without verification."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return {}
+        payload = parts[1]
+        # Add padding
+        padding = 4 - len(payload) % 4
+        if padding != 4:
+            payload += "=" * padding
+        decoded = base64.urlsafe_b64decode(payload)
+        return json.loads(decoded)
+    except:
+        return {}
