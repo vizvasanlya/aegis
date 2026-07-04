@@ -82,7 +82,9 @@ def show_model() -> None:
 
 def set_model(model_name: str) -> None:
     """Set the LLM model."""
+    import aegis.config.loader as loader
     os.environ["AEGIS_LLM"] = model_name
+    loader._cached = None  # Invalidate settings cache
     console.print(f"[green]Model set to: {model_name}[/green]\n")
 
 
@@ -108,8 +110,10 @@ def show_config() -> None:
 
 def set_config(key: str, value: str) -> None:
     """Set a configuration value."""
+    import aegis.config.loader as loader
     env_key = f"AEGIS_{key.upper()}" if not key.startswith("AEGIS_") else key
     os.environ[env_key] = value
+    loader._cached = None  # Invalidate settings cache
     console.print(f"[green]{env_key} = {value}[/green]\n")
 
 
