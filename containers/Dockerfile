@@ -96,7 +96,7 @@ RUN /home/pentester/.npm-global/bin/agent-browser doctor --offline --quick
 
 # Install browser-use for advanced browser automation
 USER pentester
-RUN python3 -m pip install --user browser-use && \
+RUN python3 -m pip install --user --break-system-packages browser-use && \
     python3 -m playwright install chromium
 ENV BROWSER_USE_HEADLESS=true
 
@@ -198,7 +198,7 @@ RUN mkdir -p /workspace && chown -R pentester:pentester /workspace /app
 USER pentester
 RUN pipx install websocket-client && \
     pipx install grpcio-tools && \
-    python3 -m pip install --user grpcio protobuf && \
+    python3 -m pip install --user --break-system-packages grpcio protobuf && \
     python3 -m venv /app/.venv && \
     /app/.venv/bin/pip install --no-cache-dir caido-sdk-client && \
     /app/.venv/bin/pip install --no-cache-dir -r /home/pentester/tools/jwt_tool/requirements.txt && \
