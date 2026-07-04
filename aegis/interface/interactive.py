@@ -36,6 +36,8 @@ from aegis.config.models import configure_sdk_model_defaults
 
 console = Console()
 
+# Global state
+_current_target = None
 
 COMMANDS = {
     "/help": "Show available commands",
@@ -48,6 +50,7 @@ COMMANDS = {
     "/history": "Show previous scan results",
     "/about": "About Aegis",
     "/version": "Show version",
+    "/clear": "Clear screen",
     "/quit": "Exit Aegis",
 }
 
@@ -200,7 +203,55 @@ def show_version() -> None:
     console.print(f"aegis {get_version()}\n")
 
 
-def handle_command(cmd: str) -> bool:
+def set_target(target: str) -> None:
+    """Set the scan target."""
+    global _current_target
+    _current_target = target
+    console.print(f"[green]Target set to: {target}[/green]")
+    console.print("[dim]Use /scan to start the scan[/dim]\n")
+
+
+def start_scan() -> None:
+    """Start scan with current settings."""
+    global _current_target
+    
+    if not _current_target:
+        console.print("[red]No target set. Use /target <url> first.[/red]\n")
+        return
+    
+    settings = load_settings()
+    if not settings.llm.model:
+        console.print("[red]No LLM model configured. Use /model <model> first.[/red]\n")
+        return
+    
+    console.print(f"[green]Starting scan of {_current_target}...[/green]")
+    console.print(f"[dim]Model: {settings.llm.model}[/dim]")
+    console.print("[dim]Press Ctrl+C to cancel[/dim]\n")
+    
+    # Run the scan
+    import asyncio
+    from aegis.interface.cli import run_cli
+    
+    class Args:
+        pass
+    
+    args = Args()
+    args.targets_info = [{"type": "web_application", "details": {"target_url": _current_target}, "original": _current_target}]
+    args.run_name = f"interactive-{_current_target.split('//')[-1].replace('/', '-')}"
+    args.scan_mode = "standard"
+    args.non_interactive = False
+    args.instruction = None
+    args.local_sources = []
+    args.diff_scope = {"active": False}
+    args.scope_mode = "auto"
+    args.diff_base = None
+    
+    try:
+        asyncio.run(run_cli(args))
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Scan cancelled.[/yellow]")
+    except Exception as e:
+        console.print(f"\n[red]Scan failed: {e}[/red]")
     """Handle a slash command. Returns True if should exit."""
     parts = cmd.strip().split(maxsplit=1)
     command = parts[0].lower()
@@ -215,12 +266,14 @@ def handle_command(cmd: str) -> bool:
             show_model()
     elif command == "/target":
         if args:
-            console.print(f"[green]Target set to: {args}[/green]")
-            console.print("[dim]Use /scan to start the scan[/dim]\n")
+            set_target(args)
         else:
-            console.print("[yellow]Usage: /target <url-or-path>[/yellow]\n")
+            if _current_target:
+                console.print(f"[bold]Current target:[/bold] {_current_target}\n")
+            else:
+                console.print("[yellow]Usage: /target <url-or-path>[/yellow]\n")
     elif command == "/scan":
-        console.print("[yellow]Starting scan... (use --target to specify target)[/yellow]\n")
+        start_scan()
     elif command == "/config":
         show_config()
     elif command == "/set":
@@ -240,6 +293,8 @@ def handle_command(cmd: str) -> bool:
         show_about()
     elif command == "/version":
         show_version()
+    elif command == "/clear":
+        console.clear()
     elif command in ("/quit", "/exit", "/q"):
         console.print("[yellow]Goodbye![/yellow]")
         return True
@@ -253,16 +308,16 @@ def handle_command(cmd: str) -> bool:
 def run_interactive_mode() -> None:
     """Run Aegis in interactive configuration mode."""
     # Show welcome banner
-    banner = """
-[bold cyan]   ___             
-  / __ \__   _____  __
- / / / / | / / _ \/_ /
-/ /_/ / /|  /  __/ / /
-\____/_/ |_/\\___/_/ v1.0
-
+    banner = r"""
+[bold cyan]
+    ___      
+   /   \__   _____  __
+  / /\ / | / / _ \/_ /
+ / /_// /|  /  __/ / /
+ \____/_/ |_/\\___/_/ 
 [/bold cyan]"""
     console.print(banner)
-    console.print("[bold]Aegis Interactive Mode[/bold]")
+    console.print("[bold cyan]AEGIS[/bold cyan] [dim]v1.0 - AI Pentesting Platform[/dim]")
     console.print("[dim]Type /help for commands, or ask a security question.[/dim]\n")
     
     # Check if model is configured
