@@ -528,12 +528,14 @@ Examples:
                 f"or remove --resume to start over with the same targets."
             )
     else:
-        if not args.target and not args.mount:
+        # Skip target validation for interactive mode
+        if not args.interactive and not args.target and not args.mount:
             parser.error(
                 "the following arguments are required: -t/--target or --mount "
-                "(or use --resume <run_name> to continue a prior scan)"
+                "(or use --resume <run_name> to continue a prior scan, "
+                "or use --interactive for configuration mode)"
             )
-        args.targets_info = []
+        args.targets_info = [] if args.interactive else []
         for target in args.target or []:
             try:
                 target_type, target_dict = infer_target_type(target)
