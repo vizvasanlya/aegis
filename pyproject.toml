@@ -42,10 +42,13 @@ dependencies = [
   "requests>=2.32.0",
   "cvss>=3.2",
   "caido-sdk-client>=0.2.0",
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
 ]
 
 [project.scripts]
 aegis = "aegis.interface.main:main"
+aegis-web = "aegis.web.app:main"
 
 [dependency-groups]
 dev = [
