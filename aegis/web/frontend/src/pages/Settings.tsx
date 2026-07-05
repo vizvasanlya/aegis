@@ -4,11 +4,8 @@ import {
   Loader2, 
   Check,
   Key,
-  Server,
   Shield,
   Bell,
-  Database,
-  ChevronDown,
   ExternalLink,
   AlertCircle
 } from 'lucide-react'
@@ -87,7 +84,6 @@ export default function Settings() {
     model: 'mimo-v2.5-free',
     apiKey: '',
     apiBase: '',
-    dockerImage: 'ghcr.io/vizvasanlya/aegis-sandbox:latest',
     maxBudget: '',
     reasoningEffort: 'high',
     telemetry: true,
@@ -275,22 +271,6 @@ export default function Settings() {
                 {testResult.message}
               </div>
             )}
-          </div>
-        </SettingsSection>
-
-        {/* Docker */}
-        <SettingsSection icon={Server} title="Docker Configuration" description="Configure the sandbox environment">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Docker Image</label>
-            <input
-              type="text"
-              value={settings.dockerImage}
-              onChange={(e) => setSettings({ ...settings, dockerImage: e.target.value })}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800/50 px-4 py-3 font-mono text-sm text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Image is pulled automatically on first run
-            </p>
           </div>
         </SettingsSection>
 
