@@ -93,7 +93,47 @@ scan_processes: dict[str, subprocess.Popen] = {}
 import base64
 import hashlib
 
-credentials_store: list[dict[str, Any]] = []
+# Persistent storage paths
+AEGIS_DIR = Path.home() / ".aegis"
+CREDENTIALS_FILE = AEGIS_DIR / "credentials.json"
+SETTINGS_FILE = AEGIS_DIR / "web-settings.json"
+
+def _ensure_aegis_dir():
+    """Ensure .aegis directory exists."""
+    AEGIS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _load_credentials() -> list[dict[str, Any]]:
+    """Load credentials from disk."""
+    _ensure_aegis_dir()
+    if CREDENTIALS_FILE.exists():
+        try:
+            return json.loads(CREDENTIALS_FILE.read_text())
+        except:
+            return []
+    return []
+
+def _save_credentials(credentials: list[dict[str, Any]]):
+    """Save credentials to disk."""
+    _ensure_aegis_dir()
+    CREDENTIALS_FILE.write_text(json.dumps(credentials, indent=2))
+
+def _load_web_settings() -> dict[str, Any]:
+    """Load web app settings from disk."""
+    _ensure_aegis_dir()
+    if SETTINGS_FILE.exists():
+        try:
+            return json.loads(SETTINGS_FILE.read_text())
+        except:
+            return {}
+    return {}
+
+def _save_web_settings(settings: dict[str, Any]):
+    """Save web app settings to disk."""
+    _ensure_aegis_dir()
+    SETTINGS_FILE.write_text(json.dumps(settings, indent=2))
+
+# Initialize from disk
+credentials_store: list[dict[str, Any]] = _load_credentials()
 
 def _encrypt_value(value: str) -> str:
     """Simple obfuscation for demo. In production, use proper encryption."""
@@ -641,13 +681,31 @@ async def list_provider_repos(provider: str) -> list[dict]:
 
 @app.get("/api/settings")
 async def get_settings() -> dict:
-    """Get current settings."""
+    """Get current settings, loading from disk if needed."""
+    # First try to load from web settings file
+    web_settings = _load_web_settings()
+    
+    # Then merge with main config
     settings = load_settings()
+    
+    model = web_settings.get("model") or settings.llm.model or ""
+    api_key = web_settings.get("api_key") or settings.llm.api_key or ""
+    api_base = web_settings.get("api_base") or settings.llm.api_base or ""
+    image = web_settings.get("image") or settings.runtime.image
+    
+    # Apply to env if loaded from disk
+    if web_settings.get("model"):
+        os.environ["AEGIS_LLM"] = web_settings["model"]
+    if web_settings.get("api_key"):
+        os.environ["LLM_API_KEY"] = web_settings["api_key"]
+    if web_settings.get("api_base"):
+        os.environ["LLM_API_BASE"] = web_settings["api_base"]
+    
     return {
-        "model": settings.llm.model or "",
-        "api_key": "***" if settings.llm.api_key else "",
-        "api_base": settings.llm.api_base or "",
-        "image": settings.runtime.image,
+        "model": model,
+        "api_key": "***" if api_key else "",
+        "api_base": api_base,
+        "image": image,
         "backend": settings.runtime.backend,
         "telemetry": settings.telemetry.enabled,
     }
@@ -655,7 +713,7 @@ async def get_settings() -> dict:
 
 @app.put("/api/settings")
 async def update_settings(update: SettingsUpdate) -> dict:
-    """Update settings."""
+    """Update settings and persist to disk."""
     if update.model:
         os.environ["AEGIS_LLM"] = update.model
     if update.api_key:
@@ -664,6 +722,22 @@ async def update_settings(update: SettingsUpdate) -> dict:
         os.environ["LLM_API_BASE"] = update.api_base
     if update.image:
         os.environ["AEGIS_IMAGE"] = update.image
+    
+    # Persist to disk
+    settings_to_save = {}
+    if update.model:
+        settings_to_save["model"] = update.model
+    if update.api_key:
+        settings_to_save["api_key"] = update.api_key
+    if update.api_base:
+        settings_to_save["api_base"] = update.api_base
+    if update.image:
+        settings_to_save["image"] = update.image
+    
+    if settings_to_save:
+        current = _load_web_settings()
+        current.update(settings_to_save)
+        _save_web_settings(current)
     
     # Invalidate cache
     import aegis.config.loader as loader
@@ -727,6 +801,7 @@ async def create_credential(data: CredentialCreate) -> dict:
         "created_at": datetime.now().isoformat(),
     }
     credentials_store.append(credential)
+    _save_credentials(credentials_store)  # Persist to disk
     
     return {
         "id": cred_id,
@@ -781,6 +856,7 @@ async def delete_credential(cred_id: int) -> dict:
     """Delete a credential."""
     global credentials_store
     credentials_store = [c for c in credentials_store if c["id"] != cred_id]
+    _save_credentials(credentials_store)  # Persist to disk
     return {"status": "deleted"}
 
 
