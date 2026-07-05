@@ -307,22 +307,26 @@ async def _do_create(  # noqa: PLR0912
                 caido_client = ctx.get("caido_client")
                 if caido_client:
                     # Get recent HTTP requests from Caido
-                    requests_data = await caido_api.list_requests_with_client(
+                    result = await caido_api.list_requests_with_client(
                         caido_client, first=20
                     )
-                    for req in requests_data:
-                        if hasattr(req, 'request') and hasattr(req, 'response'):
+                    # Caido returns a connection object with edges
+                    edges = result.edges if hasattr(result, 'edges') else []
+                    for edge in edges:
+                        req = edge.node.request if hasattr(edge, 'node') else None
+                        resp = edge.node.response if hasattr(edge, 'node') else None
+                        if req and resp:
                             auto_http_requests.append({
                                 "request": {
-                                    "method": getattr(req.request, 'method', 'GET'),
-                                    "url": getattr(req.request, 'url', ''),
-                                    "headers": dict(getattr(req.request, 'headers', {})),
-                                    "body": getattr(req.request, 'body', '')
+                                    "method": getattr(req, 'method', 'GET'),
+                                    "url": f"{getattr(req, 'host', '')}{getattr(req, 'path', '')}",
+                                    "headers": {},
+                                    "body": ""
                                 },
                                 "response": {
-                                    "status_code": getattr(req.response, 'status_code', 0),
-                                    "headers": dict(getattr(req.response, 'headers', {})),
-                                    "body": getattr(req.response, 'body', '')[:5000]
+                                    "status_code": getattr(resp, 'status_code', 0),
+                                    "headers": {},
+                                    "body": ""
                                 },
                                 "description": f"HTTP traffic for {title}"
                             })
