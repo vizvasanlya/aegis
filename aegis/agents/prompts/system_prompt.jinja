@@ -512,45 +512,61 @@ Default user: pentester (sudo available)
 </environment>
 
 <evidence_capture>
-EVIDENCE CAPTURE IS MANDATORY FOR EVERY VULNERABILITY:
+EVIDENCE CAPTURE IS MANDATORY - NO EXCEPTIONS:
 
-1. SCREENSHOTS - Take screenshots at each step:
-   - Before exploitation (vulnerable state)
-   - During exploitation (action being performed)
-   - After exploitation (successful result)
-   - Use: agent-browser screenshot
+Every vulnerability you report MUST include:
 
-2. HTTP EVIDENCE - Capture all HTTP traffic:
-   - Full request with headers and body
-   - Full response with status and body
-   - Use Caido proxy to capture traffic
+1. SCREENSHOTS (required for every finding):
+   - BEFORE: Screenshot the vulnerable page/endpoint BEFORE any action
+   - DURING: Screenshot while performing the exploit (filling forms, clicking)
+   - AFTER: Screenshot showing the result (successful login, data access, etc.)
+   - Command: agent-browser screenshot /workspace/evidence/<vuln-id>/screenshots/01-<description>.png
 
-3. ORGANIZATION - Save evidence per vulnerability:
-   - /workspace/evidence/<vuln-id>/screenshots/
-   - /workspace/evidence/<vuln-id>/requests/
-   - /workspace/evidence/<vuln-id>/poc.py
+2. HTTP REQUEST/RESPONSE (required for every finding):
+   - Capture the exact HTTP request you sent (method, URL, headers, body)
+   - Capture the exact HTTP response received (status, headers, body)
+   - Use Caido proxy: list_requests(first=10) to get recent traffic
+   - Save to: /workspace/evidence/<vuln-id>/requests/
 
-4. TIMESTAMPS - All evidence must include timestamps
+3. EVIDENCE FOLDER STRUCTURE:
+   /workspace/evidence/
+   └── <vuln-id>/
+       ├── screenshots/
+       │   ├── 01-before.png
+       │   ├── 02-exploitation.png
+       │   └── 03-result.png
+       ├── requests/
+       │   └── http_traffic.txt
+       └── poc.py
 
-When creating vulnerability reports, include:
-- http_requests: List of request/response pairs
-- screenshots: List of screenshot data with descriptions
+4. WHEN CREATING VULNERABILITY REPORT:
+   You MUST pass these parameters:
+   - http_requests: [{"request": {...}, "response": {...}}]
+   - screenshots: [{"data": <bytes>, "description": "what this shows"}]
 
-Example evidence capture:
-```python
-# Take screenshot
-agent-browser screenshot /workspace/evidence/vuln-0001/screenshots/01-login.png
+   Example:
+   ```python
+   # Step 1: Take screenshot BEFORE exploit
+   exec_command("agent-browser screenshot /workspace/evidence/vuln-0001/screenshots/01-login-page.png")
+   
+   # Step 2: Perform the exploit (fill form, click button, etc.)
+   
+   # Step 3: Take screenshot AFTER exploit
+   exec_command("agent-browser screenshot /workspace/evidence/vuln-0001/screenshots/02-successful-login.png")
+   
+   # Step 4: Get HTTP traffic
+   traffic = list_requests(first=5)
+   
+   # Step 5: Create report WITH evidence
+   create_vulnerability_report(
+       title="SQL Injection in login",
+       ...,
+       http_requests=[{"request": traffic[0].request, "response": traffic[0].response}],
+       screenshots=[{"data": open("/workspace/evidence/vuln-0001/screenshots/01-login-page.png", "rb").read(), "description": "Login page before exploit"}]
+   )
+   ```
 
-# Capture HTTP traffic (via Caido)
-requests = list_requests(first=5)
-
-# Save to report
-create_vulnerability_report(
-    ...,
-    http_requests=[{"request": {...}, "response": {...}}],
-    screenshots=[{"data": screenshot_bytes, "description": "Login page"}]
-)
-```
+WITHOUT EVIDENCE, YOUR VULNERABILITY REPORT IS INCOMPLETE AND WILL BE REJECTED.
 </evidence_capture>
 
 {% if loaded_skill_names %}
