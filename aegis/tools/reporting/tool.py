@@ -171,6 +171,7 @@ async def _do_create(  # noqa: PLR0912
     screenshots: list[dict[str, Any]] | None = None,
     agent_id: str | None = None,
     agent_name: str | None = None,
+    inner_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     fields = {
@@ -288,14 +289,15 @@ async def _do_create(  # noqa: PLR0912
             from aegis.tools.proxy import caido_api
             
             # Get scan directory from context
-            scan_id = inner.get("scan_id") or inner.get("agent_id", "unknown")
+            ctx = inner_context or {}
+            scan_id = ctx.get("scan_id") or ctx.get("agent_id", "unknown")
             run_dir = run_dir_for(scan_id)
             evidence = get_evidence_capture(str(run_dir))
             
             # AUTOMATICALLY capture HTTP traffic from Caido
             auto_http_requests = []
             try:
-                caido_client = inner.get("caido_client")
+                caido_client = ctx.get("caido_client")
                 if caido_client:
                     # Get recent HTTP requests from Caido
                     requests_data = await caido_api.list_requests_with_client(
@@ -592,7 +594,10 @@ async def create_vulnerability_report(
         cve=cve,
         cwe=cwe,
         code_locations=code_locations,
+        http_requests=http_requests,
+        screenshots=screenshots,
         agent_id=agent_id,
         agent_name=agent_name,
+        inner_context=inner,
     )
     return json.dumps(result, ensure_ascii=False, default=str)
