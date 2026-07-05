@@ -281,19 +281,51 @@ async def _do_create(  # noqa: PLR0912
             agent_name=agent_name if isinstance(agent_name, str) else None,
         )
         
-        # Save evidence
+        # Auto-capture evidence from Caido proxy
         try:
             from aegis.tools.evidence_capture import get_evidence_capture
             from aegis.core.paths import run_dir_for
+            from aegis.tools.proxy import caido_api
             
             # Get scan directory from context
             scan_id = inner.get("scan_id") or inner.get("agent_id", "unknown")
             run_dir = run_dir_for(scan_id)
             evidence = get_evidence_capture(str(run_dir))
             
+            # AUTOMATICALLY capture HTTP traffic from Caido
+            auto_http_requests = []
+            try:
+                caido_client = inner.get("caido_client")
+                if caido_client:
+                    # Get recent HTTP requests from Caido
+                    requests_data = await caido_api.list_requests_with_client(
+                        caido_client, first=20
+                    )
+                    for req in requests_data:
+                        if hasattr(req, 'request') and hasattr(req, 'response'):
+                            auto_http_requests.append({
+                                "request": {
+                                    "method": getattr(req.request, 'method', 'GET'),
+                                    "url": getattr(req.request, 'url', ''),
+                                    "headers": dict(getattr(req.request, 'headers', {})),
+                                    "body": getattr(req.request, 'body', '')
+                                },
+                                "response": {
+                                    "status_code": getattr(req.response, 'status_code', 0),
+                                    "headers": dict(getattr(req.response, 'headers', {})),
+                                    "body": getattr(req.response, 'body', '')[:5000]
+                                },
+                                "description": f"HTTP traffic for {title}"
+                            })
+            except Exception as e:
+                logger.debug(f"Could not auto-capture HTTP traffic: {e}")
+            
+            # Merge with agent-provided requests
+            all_requests = (http_requests or []) + auto_http_requests[:5]
+            
             # Save HTTP request/response evidence
-            if http_requests:
-                for req in http_requests:
+            if all_requests:
+                for req in all_requests:
                     evidence.save_http_evidence(
                         report_id,
                         request=req.get("request", {}),
