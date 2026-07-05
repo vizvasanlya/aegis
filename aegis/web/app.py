@@ -93,8 +93,8 @@ scan_processes: dict[str, subprocess.Popen] = {}
 import base64
 import hashlib
 
-# Persistent storage paths
-AEGIS_DIR = Path.home() / ".aegis"
+# Persistent storage paths (in project folder)
+AEGIS_DIR = Path(__file__).resolve().parent.parent.parent / ".aegis"
 CREDENTIALS_FILE = AEGIS_DIR / "credentials.json"
 SETTINGS_FILE = AEGIS_DIR / "web-settings.json"
 
