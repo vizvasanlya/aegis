@@ -285,14 +285,21 @@ async def _do_create(  # noqa: PLR0912
         # Auto-capture evidence from Caido proxy
         try:
             from aegis.tools.evidence_capture import get_evidence_capture
-            from aegis.core.paths import run_dir_for
+            from aegis.report.state import get_global_report_state
             from aegis.tools.proxy import caido_api
             
-            # Get scan directory from context
-            ctx = inner_context or {}
-            scan_id = ctx.get("scan_id") or ctx.get("agent_id", "unknown")
-            run_dir = run_dir_for(scan_id)
-            evidence = get_evidence_capture(str(run_dir))
+            # Get the correct run directory from the global report state
+            report_state = get_global_report_state()
+            if report_state:
+                run_dir = report_state.get_run_dir()
+                evidence = get_evidence_capture(str(run_dir))
+            else:
+                # Fallback: use scan_id from context
+                ctx = inner_context or {}
+                scan_id = ctx.get("scan_id") or ctx.get("agent_id", "unknown")
+                from aegis.core.paths import run_dir_for
+                run_dir = run_dir_for(scan_id)
+                evidence = get_evidence_capture(str(run_dir))
             
             # AUTOMATICALLY capture HTTP traffic from Caido
             auto_http_requests = []
