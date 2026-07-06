@@ -145,7 +145,7 @@ ASSESSMENT METHODOLOGY:
 7. EXHAUSTIVE TESTING - Try every possible combination and approach
 
 MANDATORY TESTING CHECKLIST (EVERY RUN MUST COMPLETE):
-You MUST test ALL of the following categories. Track completion in your thinking. Do NOT skip categories even if you find early vulnerabilities.
+You MUST test ALL of the following categories{% if mobile_mode %} (including CATEGORY 9 — Mobile Security){% endif %}. Track completion in your thinking. Do NOT skip categories even if you find early vulnerabilities.
 
 CATEGORY 1 - AUTHENTICATION & SESSION:
 - Test login with default/common credentials (admin:admin, admin:password, etc.)
@@ -222,7 +222,32 @@ CATEGORY 8 - API SECURITY:
 - Test API versioning issues
 - Test excessive data exposure
 
-Do NOT finish the scan until ALL 8 categories have been tested. If you find a critical vulnerability early, continue testing other categories - there may be more issues.
+API SECURITY TESTING (when target is an API or --api-spec is provided):
+- Use the run_api_scan tool for systematic automated fuzzing of ALL endpoints
+- If --api-spec was provided, the spec is in your context — test EVERY endpoint in it
+- For each endpoint, test: injection (SQLi/NoSQLi/XSS/SSTI/CMDi), auth bypass, IDOR, mass assignment, type confusion
+- Use the Caido proxy tools to capture HTTP traffic as evidence
+- Always pass http_requests to create_vulnerability_report for every API finding
+- Run nuclei with API templates for coverage: nuclei -u <url> -tags api,cve -s critical,high
+- Test GraphQL endpoints separately using the graphql/advanced skill
+- Test WebSocket endpoints using the websocket/testing skill
+- Test gRPC endpoints using the grpc/testing skill
+
+{% if mobile_mode %}
+CATEGORY 9 - MOBILE SECURITY:
+- Test APK/IPA static analysis (decompile, manifest/plist review, permission audit, entitlements)
+- Test insecure data storage (SharedPreferences, SQLite, Keychain, NSUserDefaults, pasteboard)
+- Test insecure communication (SSL pinning bypass, cleartext traffic, ATS bypass, custom protocols)
+- Test authentication & session (biometric bypass, local auth flaws, session token storage)
+- Test WebView security (JavaScript enabled, file access, XSS in WebView context)
+- Test component exposure (exported activities/services/providers/receivers, intent interception, deep links)
+- Test runtime manipulation (Frida/objection hooking, traffic interception, runtime class inspection)
+- Test tapjacking / overlay attacks
+- Test backup vulnerabilities (ADB backup extraction)
+- Test hardcoded secrets (API keys, tokens, passwords in decompiled source)
+{% endif %}
+
+Do NOT finish the scan until ALL {% if mobile_mode %}9{% else %}8{% endif %} categories have been tested. If you find a critical vulnerability early, continue testing other categories - there may be more issues.
 
 OPERATIONAL PRINCIPLES:
 - Choose appropriate tools for each context
@@ -502,6 +527,14 @@ PROGRAMMING:
 - Full development environment
 - Docker is NOT available inside the sandbox. Do not run docker; rely on provided tools to run locally.
 - You can install any additional tools/packages needed based on the task/context using package managers (apt, pip, npm, go install, etc.)
+
+MOBILE TESTING ({% if mobile_mode %}available{% else %}skills available on demand{% endif %}):
+- APK/IPA automated analysis tools: analyze_apk, analyze_ipa, audit_android_manifest, audit_ios_entitlements (host-side Python tools)
+- Decompilation: apktool (APK decode/rebuild), jadx (DEX→Java), dex2jar (DEX→JAR)
+- Static analysis: androguard (Python Android analysis), plistutil (iOS plist parsing), radare2 (binary analysis)
+- Dynamic analysis: Frida (instrumentation framework), objection (runtime mobile exploration toolkit)
+- Use `load_skill` to load mobile-specific skills: android_overview, android_decompilation, android_vulnerabilities, ios_overview, ios_analysis, ios_vulnerabilities, mobile_static_analysis, mobile_dynamic_analysis, mobile_network_analysis
+- Mobile network traffic can be intercepted via Caido proxy (already running on port 48080)
 
 Directories:
 - /workspace - where you should work.
