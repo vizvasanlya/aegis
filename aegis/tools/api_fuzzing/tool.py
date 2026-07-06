@@ -23,8 +23,8 @@ async def run_api_scan(
     """Automated API security scanner — tests every endpoint for vulnerabilities.
 
     Scans all endpoints using intelligent fuzzing with schema-guided payload
-    generation. Tests injection, authentication, authorization, and business
-    logic vulnerabilities. Returns structured findings with HTTP evidence.
+    generation. Tests injection, authentication, authorization, business
+    logic, and schema violations. Returns structured findings with HTTP evidence.
 
     Args:
         base_url: Target API base URL (e.g., "https://api.target.com").
@@ -35,13 +35,11 @@ async def run_api_scan(
         auth_headers: JSON string of authentication headers
             (e.g., '{"Authorization": "Bearer eyJ..."}').
             If omitted, tests both unauthenticated and authenticated access.
-        focus: Testing focus — "injection" (SQLi/XSS/SSTI/CMDi),
-            "auth" (authentication/authorization bypass), or "all" (default).
-            Focused scans run faster; "all" is recommended for full coverage.
+        focus: Testing focus — "injection", "auth", "schema", or "all" (default).
 
     Returns:
         JSON string with scan results including vulnerabilities found,
-        endpoints tested, and HTTP evidence for each finding.
+        endpoints tested, coverage report, and HTTP evidence for each finding.
     """
     from aegis.tools.api_fuzzing.schema import (
         discover_schema,
@@ -51,6 +49,7 @@ async def run_api_scan(
     from aegis.tools.api_fuzzing.fuzzer import generate_test_cases
     from aegis.tools.api_fuzzing.runner import run_fuzzing
     from aegis.tools.api_fuzzing.analyzer import analyze_result
+    from aegis.tools.api_fuzzing.coverage import CoverageTracker
 
     # Parse auth headers
     headers: dict[str, str] | None = None
@@ -64,7 +63,6 @@ async def run_api_scan(
     endpoints: list[Endpoint] = []
 
     if spec_path:
-        # Load from provided spec file
         import requests as req
 
         try:
@@ -85,13 +83,11 @@ async def run_api_scan(
         endpoints = parse_openapi_spec(spec)
         logger.info("Loaded %d endpoints from spec", len(endpoints))
     else:
-        # Auto-discover schema
         schema = discover_schema(base_url)
         if schema:
             endpoints = parse_openapi_spec(schema)
             logger.info("Auto-discovered %d endpoints", len(endpoints))
         else:
-            # Fallback: test common API paths
             endpoints = _common_endpoint_fallback()
             logger.info("No schema found, testing %d common endpoints", len(endpoints))
 
@@ -101,6 +97,9 @@ async def run_api_scan(
             "error": "No endpoints discovered. Provide --api-spec or check target URL.",
         })
 
+    # Initialize coverage tracker
+    tracker = CoverageTracker(endpoints)
+
     # Step 2: Generate test cases
     all_tests = []
     for endpoint in endpoints:
@@ -109,19 +108,20 @@ async def run_api_scan(
             tests = [t for t in tests if t.category == "injection"]
         elif focus == "auth":
             tests = [t for t in tests if t.category == "auth"]
+        elif focus == "schema":
+            tests = []  # Schema violations handled separately
         all_tests.extend(tests)
 
     logger.info("Generated %d test cases across %d endpoints", len(all_tests), len(endpoints))
 
-    # Limit total tests to prevent timeout
+    # Limit total tests
     max_tests = 100
     if len(all_tests) > max_tests:
-        # Prioritize: auth tests first, then injection, then business logic
         priority_order = {"auth": 0, "injection": 1, "business_logic": 2}
         all_tests.sort(key=lambda t: priority_order.get(t.category, 3))
         all_tests = all_tests[:max_tests]
 
-    # Step 3: Execute tests
+    # Step 3: Execute fuzzing tests
     results = await run_fuzzing(
         base_url=base_url,
         tests=all_tests,
@@ -130,11 +130,16 @@ async def run_api_scan(
         timeout=15,
     )
 
+    # Track coverage
+    for result in results:
+        tracker.record_test(result.test.endpoint, result.test.method, result.test.category)
+
     # Step 4: Analyze results
     vulnerabilities = []
     for result in results:
         vuln = analyze_result(result)
         if vuln:
+            tracker.record_vulnerability(result.test.endpoint, result.test.method)
             vulnerabilities.append({
                 "title": vuln.title,
                 "severity": vuln.severity,
@@ -153,11 +158,39 @@ async def run_api_scan(
                 },
             })
 
+    # Step 5: Schema violation tests (if enabled)
+    if focus != "injection" and focus != "auth":
+        try:
+            from aegis.tools.api_fuzzing.schema_violation import test_schema_violations
+
+            violations = test_schema_violations(base_url, endpoints, headers, max_endpoints=10)
+            for v in violations:
+                tracker.record_test(v.endpoint, v.method, "schema_violation")
+                if v.severity in ("high", "critical"):
+                    tracker.record_vulnerability(v.endpoint, v.method)
+                    vulnerabilities.append({
+                        "title": f"Schema Violation: {v.violation_type}",
+                        "severity": v.severity,
+                        "category": "schema_violation",
+                        "description": v.description,
+                        "evidence": v.response_snippet,
+                        "endpoint": v.endpoint,
+                        "method": v.method,
+                        "cwe": "CWE-20",
+                    })
+        except Exception as exc:
+            logger.debug("Schema violation tests failed: %s", exc)
+
+    # Generate coverage report
+    coverage = tracker.generate_report()
+
     return json.dumps({
         "success": True,
-        "endpoints_tested": len(endpoints),
-        "tests_executed": len(results),
-        "vulnerabilities_found": len(vulnerabilities),
+        "endpoints_tested": coverage.endpoints_tested,
+        "tests_executed": coverage.total_tests,
+        "vulnerabilities_found": coverage.total_vulns,
+        "coverage_percent": coverage.coverage_percent,
+        "untested_endpoints": coverage.untested_endpoints,
         "vulnerabilities": vulnerabilities,
     }, ensure_ascii=False, default=str)
 
