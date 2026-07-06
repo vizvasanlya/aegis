@@ -520,51 +520,93 @@ Every vulnerability you report MUST include:
    - BEFORE: Screenshot the vulnerable page/endpoint BEFORE any action
    - DURING: Screenshot while performing the exploit (filling forms, clicking)
    - AFTER: Screenshot showing the result (successful login, data access, etc.)
-   - Command: agent-browser screenshot /workspace/evidence/<vuln-id>/screenshots/01-<description>.png
 
-2. HTTP REQUEST/RESPONSE (required for every finding):
-   - Capture the exact HTTP request you sent (method, URL, headers, body)
-   - Capture the exact HTTP response received (status, headers, body)
-   - Use Caido proxy: list_requests(first=10) to get recent traffic
-   - Save to: /workspace/evidence/<vuln-id>/requests/
+   WORKFLOW (3 steps):
+   Step 1: Take screenshot to disk via shell
+     exec_command("agent-browser screenshot /workspace/evidence/<vuln-id>/screenshots/01-before.png")
 
-3. EVIDENCE FOLDER STRUCTURE:
-   /workspace/evidence/
-   └── <vuln-id>/
-       ├── screenshots/
-       │   ├── 01-before.png
-       │   ├── 02-exploitation.png
-       │   └── 03-result.png
-       ├── requests/
-       │   └── http_traffic.txt
-       └── poc.py
+   Step 2: Read the screenshot bytes via Python
+     exec_command("python3 -c \"\nwith open('/workspace/evidence/<vuln-id>/screenshots/01-before.png', 'rb') as f:\n    data = f.read()\nprint(len(data))\n\"")
 
-4. WHEN CREATING VULNERABILITY REPORT:
-   You MUST pass these parameters:
-   - http_requests: [{"request": {...}, "response": {...}}]
-   - screenshots: [{"data": <bytes>, "description": "what this shows"}]
+   Step 3: Pass bytes to create_vulnerability_report
+     screenshots=[{'data': open('/workspace/evidence/<vuln-id>/screenshots/01-before.png', 'rb').read(), 'description': 'Login page before exploit'}]
 
-   Example:
-   ```python
-   # Step 1: Take screenshot BEFORE exploit
-   exec_command("agent-browser screenshot /workspace/evidence/vuln-0001/screenshots/01-login-page.png")
-   
-   # Step 2: Perform the exploit (fill form, click button, etc.)
-   
-   # Step 3: Take screenshot AFTER exploit
-   exec_command("agent-browser screenshot /workspace/evidence/vuln-0001/screenshots/02-successful-login.png")
-   
-   # Step 4: Get HTTP traffic
-   traffic = list_requests(first=5)
-   
-   # Step 5: Create report WITH evidence
+   2. HTTP REQUEST/RESPONSE (required for every finding):
+   - Capture the EXACT HTTP request with ALL headers (Host, User-Agent, Accept, Cookie, Authorization, Content-Type, etc.)
+   - Capture the EXACT HTTP response with ALL headers (Content-Type, Server, Date, Cache-Control, Set-Cookie, etc.)
+   - Capture the response body (HTML, JSON, error messages)
+
+   BEST APPROACH - Use Caido proxy tools:
+     # Step 1: Get list of captured requests
+     traffic = list_requests(first=10)
+     
+     # Step 2: Find the relevant request and get full details
+     # The view_request tool returns full raw HTTP with all headers
+     view_request(request_id=traffic[0].id, part="request")
+     view_request(request_id=traffic[0].id, part="response")
+     
+     # Step 3: Pass to create_vulnerability_report with FULL headers
+     http_requests=[{
+         'request': {
+             'method': 'POST',
+             'url': 'https://target.com/api/login',
+             'headers': {'Host': 'target.com', 'Content-Type': 'application/json', 'Origin': 'https://evil.com', ...},
+             'body': '{"email":"admin","password":"pass"}'
+         },
+         'response': {
+             'status_code': 200,
+             'headers': {'Content-Type': 'application/json', 'Server': 'nginx', 'Date': '...', ...},
+             'body': '{"token":"eyJhbG...","role":"admin"}'
+         },
+         'description': 'Successful authentication bypass'
+     }]
+
+   ALTERNATIVE - Manual capture with Python:
+     exec_command("python3 -c \"\nimport requests\nresp = requests.get('https://target.com/api/endpoint')\nprint('Status:', resp.status_code)\nprint('Headers:', dict(resp.headers))\nprint('Body:', resp.text[:1000])\n\"")
+     Then pass the FULL data to create_vulnerability_report.
+
+   IMPORTANT: Headers are evidence. Empty headers = incomplete evidence.
+   Always capture: Host, Content-Type, Server, Date, Set-Cookie, Authorization, Origin.
+
+3. EVIDENCE FOLDER STRUCTURE (save to sandbox disk):
+   /workspace/evidence/<vuln-id>/
+   ├── screenshots/
+   │   ├── 01-before.png
+   │   ├── 02-exploitation.png
+   │   └── 03-result.png
+   ├── requests/
+   │   └── request_YYYYMMDD_HHMMSS.txt
+   └── poc.py
+
+4. WHEN CREATING VULNERABILITY REPORT - pass evidence params:
    create_vulnerability_report(
-       title="SQL Injection in login",
-       ...,
-       http_requests=[{"request": traffic[0].request, "response": traffic[0].response}],
-       screenshots=[{"data": open("/workspace/evidence/vuln-0001/screenshots/01-login-page.png", "rb").read(), "description": "Login page before exploit"}]
+       title='SQL Injection in /api/login',
+       poc_description='Step 1: Navigate to https://target.com/login\nStep 2: Enter admin@target.com in email field\nStep 3: Enter payload in password field\nStep 4: Click Login\nStep 5: Observe: database error returned, confirming SQLi',
+       poc_script_code='import requests\nresp = requests.post(\"https://target.com/api/login\", json={\"email\": \"admin@target.com\", \"password\": \"admin\\' OR 1=1--\"})\nprint(f\"Status: {resp.status_code}\")\nprint(f\"Response: {resp.text[:500]}\")  # Shows database error confirming injection',
+       http_requests=[{
+           'request': {'method': 'POST', 'url': 'https://target.com/api/login', 'headers': {'Content-Type': 'application/json'}, 'body': '{\"email\":\"admin@target.com\",\"password\":\"admin\\' OR 1=1--\"}'},
+           'response': {'status_code': 500, 'headers': {}, 'body': 'You have an error in your SQL syntax...'},
+           'description': 'SQL injection payload execution'
+       }],
+       screenshots=[
+           {'data': open('/workspace/evidence/vuln-0001/screenshots/01-before.png', 'rb').read(), 'description': 'Login page before exploit'},
+           {'data': open('/workspace/evidence/vuln-0001/screenshots/02-result.png', 'rb').read(), 'description': 'Database error confirming SQL injection'}
+       ],
+       ...
    )
-   ```
+
+   5. POC QUALITY REQUIREMENTS:
+   - poc_description: Numbered step-by-step instructions a human can follow
+   - poc_script_code: Working Python/bash code that reproduces the exploit
+   - Every PoC MUST show the SERVER RESPONSE confirming exploitation
+   - The response IS the proof - without showing what the server returned, the PoC is incomplete
+   
+   GOOD PoC example:
+     poc_description: "1. Send POST to /api/login with credentials\n2. Observe: 200 OK with JWT token\n3. Use token to access /api/admin\n4. Observe: full admin data returned"
+     poc_script_code: "import requests\nr = requests.post('https://target.com/api/login', json={'email':'admin','password':'Admin@123'})\nprint(f'Status: {r.status_code}')\nprint(f'Response: {r.text[:500]}')  # Shows JWT token = confirmed bypass"
+   
+   BAD PoC (incomplete):
+     poc_script_code: "import requests\nr = requests.get('https://target.com')"  # No output, no proof
 
 WITHOUT EVIDENCE, YOUR VULNERABILITY REPORT IS INCOMPLETE AND WILL BE REJECTED.
 </evidence_capture>

@@ -114,6 +114,22 @@ def _atomic_write_text(path: Path, payload: str) -> None:
     tmp_path.replace(path)
 
 
+def _detect_poc_language(code: str) -> str:
+    """Detect the language of a PoC code block for syntax highlighting."""
+    stripped = code.strip()
+    if stripped.startswith("#!/bin/bash") or stripped.startswith("#!/usr/bin/env bash"):
+        return "bash"
+    if stripped.startswith("curl ") or stripped.startswith("wget "):
+        return "bash"
+    if stripped.startswith("<!DOCTYPE") or stripped.startswith("<html"):
+        return "html"
+    if "requests." in stripped or "import requests" in stripped:
+        return "python"
+    if stripped.startswith("{") or stripped.startswith("["):
+        return "json"
+    return "text"
+
+
 def render_vulnerability_md(report: dict[str, Any]) -> str:  # noqa: PLR0912, PLR0915
     lines: list[str] = [
         f"# {report.get('title', 'Untitled Vulnerability')}\n",
@@ -157,10 +173,54 @@ def render_vulnerability_md(report: dict[str, Any]) -> str:  # noqa: PLR0912, PL
             lines.append(str(report["poc_description"]))
             lines.append("")
         if report.get("poc_script_code"):
-            lines.append("```")
-            lines.append(str(report["poc_script_code"]))
+            poc_code = str(report["poc_script_code"])
+            lang = _detect_poc_language(poc_code)
+            lines.append(f"```{lang}")
+            lines.append(poc_code)
             lines.append("```")
             lines.append("")
+
+    # HTTP Request/Response evidence
+    if report.get("http_requests"):
+        lines.append("## HTTP Request/Response Evidence\n")
+        for i, http_pair in enumerate(report["http_requests"]):
+            req = http_pair.get("request", {})
+            resp = http_pair.get("response", {})
+            desc = http_pair.get("description", "")
+            if desc:
+                lines.append(f"**{desc}**\n")
+            lines.append("```http")
+            # Request
+            method = req.get("method", "GET")
+            url = req.get("url", "")
+            lines.append(f"{method} {url} HTTP/1.1")
+            for k, v in req.get("headers", {}).items():
+                lines.append(f"{k}: {v}")
+            body = req.get("body", "")
+            if body:
+                lines.append(f"\n{body}")
+            lines.append("")
+            # Response
+            status_code = resp.get("status_code", "")
+            lines.append(f"HTTP/1.1 {status_code}")
+            for k, v in resp.get("headers", {}).items():
+                lines.append(f"{k}: {v}")
+            resp_body = resp.get("body", "")
+            if resp_body:
+                display_body = resp_body[:2000]
+                lines.append(f"\n{display_body}")
+                if len(resp_body) > 2000:
+                    lines.append("\n... (truncated, full response in evidence/)")
+            lines.append("```\n")
+
+    # Screenshot evidence references
+    if report.get("screenshot_files"):
+        lines.append("## Screenshots\n")
+        for ss in report["screenshot_files"]:
+            desc = ss.get("description", "Screenshot")
+            path = ss.get("path", "")
+            lines.append(f"- {desc}: `{path}`")
+        lines.append("")
 
     if report.get("code_locations"):
         lines.append("## Code Analysis\n")

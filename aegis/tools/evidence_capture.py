@@ -60,7 +60,7 @@ class EvidenceCapture:
     
     def save_http_evidence(self, vuln_id: str, request: Dict[str, Any], 
                            response: Dict[str, Any], description: str = "") -> str:
-        """Save HTTP request/response evidence."""
+        """Save HTTP request/response evidence in professional format."""
         vuln_dir = self.create_vuln_evidence_dir(vuln_id)
         
         # Generate filename with timestamp
@@ -68,24 +68,60 @@ class EvidenceCapture:
         filename = f"request_{timestamp}.txt"
         evidence_path = vuln_dir / "requests" / filename
         
-        # Format evidence
-        evidence = f"""=== HTTP Evidence ===
-Timestamp: {datetime.now().isoformat()}
-Description: {description}
-
---- REQUEST ---
-{request.get('method', 'GET')} {request.get('url', '')} HTTP/1.1
-Host: {request.get('host', '')}
-{chr(10).join(f'{k}: {v}' for k, v in request.get('headers', {}).items())}
-
-{request.get('body', '')}
-
---- RESPONSE ---
-HTTP/1.1 {response.get('status_code', '')} {response.get('status_text', '')}
-{chr(10).join(f'{k}: {v}' for k, v in response.get('headers', {}).items())}
-
-{response.get('body', '')[:5000]}
-"""
+        # Build request section
+        req_method = request.get('method', 'GET')
+        req_url = request.get('url', '')
+        req_headers = request.get('headers', {})
+        req_body = request.get('body', '')
+        
+        # Build response section
+        resp_status = response.get('status_code', '')
+        resp_status_text = response.get('status_text', '')
+        resp_headers = response.get('headers', {})
+        resp_body = response.get('body', '')[:5000]
+        
+        # Format as professional raw HTTP traffic
+        lines = []
+        lines.append("=" * 70)
+        lines.append("HTTP REQUEST/RESPONSE EVIDENCE")
+        lines.append("=" * 70)
+        lines.append(f"Timestamp:  {datetime.now().isoformat()}")
+        if description:
+            lines.append(f"Description: {description}")
+        lines.append("")
+        
+        # Request section
+        lines.append("-" * 70)
+        lines.append("REQUEST")
+        lines.append("-" * 70)
+        lines.append(f"{req_method} {req_url} HTTP/1.1")
+        if req_headers:
+            for k, v in req_headers.items():
+                lines.append(f"{k}: {v}")
+        else:
+            lines.append("(no request headers captured)")
+        if req_body:
+            lines.append("")
+            lines.append(req_body)
+        lines.append("")
+        
+        # Response section
+        lines.append("-" * 70)
+        lines.append("RESPONSE")
+        lines.append("-" * 70)
+        lines.append(f"HTTP/1.1 {resp_status} {resp_status_text}".rstrip())
+        if resp_headers:
+            for k, v in resp_headers.items():
+                lines.append(f"{k}: {v}")
+        else:
+            lines.append("(no response headers captured)")
+        if resp_body:
+            lines.append("")
+            lines.append(resp_body)
+        lines.append("")
+        lines.append("=" * 70)
+        
+        evidence = "\n".join(lines)
         
         with open(evidence_path, "w") as f:
             f.write(evidence)
@@ -98,6 +134,10 @@ HTTP/1.1 {response.get('status_code', '')} {response.get('status_text', '')}
             "request_url": request.get("url"),
             "request_method": request.get("method"),
             "response_status": response.get("status_code"),
+            "request_headers_count": len(req_headers),
+            "response_headers_count": len(resp_headers),
+            "request_body_length": len(req_body),
+            "response_body_length": len(resp_body),
             "hash_sha256": hashlib.sha256(evidence.encode()).hexdigest(),
         }
         

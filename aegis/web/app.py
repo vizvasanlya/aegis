@@ -28,7 +28,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from pydantic import BaseModel, Field
 
 from aegis.config import load_settings, apply_config_override, persist_current
@@ -353,6 +353,35 @@ async def list_all_vulnerabilities() -> list[dict]:
                     pass
     
     return all_vulns
+
+
+@app.get("/api/evidence/{scan_id}/evidence/{path:path}")
+async def serve_evidence_file(scan_id: str, path: str):
+    """Serve evidence files (screenshots, request logs) for a scan."""
+    # Sanitize path to prevent directory traversal
+    if ".." in path or path.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    
+    file_path = Path("aegis_runs") / scan_id / "evidence" / path
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    
+    # Determine content type
+    suffix = file_path.suffix.lower()
+    content_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".txt": "text/plain",
+        ".json": "application/json",
+        ".py": "text/x-python",
+        ".sh": "application/x-sh",
+    }
+    content_type = content_types.get(suffix, "application/octet-stream")
+    
+    return FileResponse(file_path, media_type=content_type)
 
 
 # ─── Git Integration ─────────────────────────────────────────────────────────

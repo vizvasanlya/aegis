@@ -285,57 +285,121 @@ async def _do_create(  # noqa: PLR0912
         # Auto-capture evidence from Caido proxy
         try:
             from aegis.tools.evidence_capture import get_evidence_capture
-            from aegis.report.state import get_global_report_state
             from aegis.tools.proxy import caido_api
-            
+
+            ctx = inner_context or {}
+            caido_client = ctx.get("caido_client")
+            logger.debug(
+                "Evidence auto-capture: ctx_keys=%s, has_caido=%s, http_reqs=%d",
+                list(ctx.keys()) if isinstance(ctx, dict) else "not-dict",
+                caido_client is not None,
+                len(http_requests) if http_requests else 0,
+            )
+
             # Get the correct run directory from the global report state
-            report_state = get_global_report_state()
-            if report_state:
-                run_dir = report_state.get_run_dir()
-                evidence = get_evidence_capture(str(run_dir))
-            else:
-                # Fallback: use scan_id from context
-                ctx = inner_context or {}
-                scan_id = ctx.get("scan_id") or ctx.get("agent_id", "unknown")
-                from aegis.core.paths import run_dir_for
-                run_dir = run_dir_for(scan_id)
-                evidence = get_evidence_capture(str(run_dir))
-            
-            # AUTOMATICALLY capture HTTP traffic from Caido
-            auto_http_requests = []
+            run_dir = report_state.get_run_dir()
+            evidence = get_evidence_capture(str(run_dir))
+
+            # AUTOMATICALLY capture HTTP traffic from Caido with full headers/body
+            auto_http_requests: list[dict[str, Any]] = []
             try:
                 caido_client = ctx.get("caido_client")
-                if caido_client:
-                    # Get recent HTTP requests from Caido
-                    result = await caido_api.list_requests_with_client(
-                        caido_client, first=20
-                    )
-                    # Caido returns a connection object with edges
-                    edges = result.edges if hasattr(result, 'edges') else []
-                    for edge in edges:
-                        req = edge.node.request if hasattr(edge, 'node') else None
-                        resp = edge.node.response if hasattr(edge, 'node') else None
-                        if req and resp:
-                            auto_http_requests.append({
-                                "request": {
-                                    "method": getattr(req, 'method', 'GET'),
-                                    "url": f"{getattr(req, 'host', '')}{getattr(req, 'path', '')}",
-                                    "headers": {},
-                                    "body": ""
-                                },
-                                "response": {
-                                    "status_code": getattr(resp, 'status_code', 0),
-                                    "headers": {},
-                                    "body": ""
-                                },
-                                "description": f"HTTP traffic for {title}"
-                            })
-            except Exception as e:
-                logger.debug(f"Could not auto-capture HTTP traffic: {e}")
-            
-            # Merge with agent-provided requests
-            all_requests = (http_requests or []) + auto_http_requests[:5]
-            
+                # Try context client first, fall back to fresh connection
+                clients_to_try = [caido_client] if caido_client else []
+                clients_to_try.append(None)  # None = use get_client() fallback
+
+                list_result = None
+                for client_candidate in clients_to_try:
+                    if list_result is not None:
+                        break
+                    for _attempt in range(2):
+                        try:
+                            if client_candidate is not None:
+                                logger.debug("Trying context caido_client (attempt %d)", _attempt)
+                                list_result = await caido_api.list_requests_with_client(
+                                    client_candidate, first=10,
+                                )
+                            else:
+                                logger.debug("Trying fresh caido_api.get_client() (attempt %d)", _attempt)
+                                fresh = await caido_api.get_client()
+                                list_result = await caido_api.list_requests_with_client(
+                                    fresh, first=10,
+                                )
+                            logger.debug("Caido list_requests succeeded, edges=%d", len(list_result.edges) if hasattr(list_result, "edges") else 0)
+                            break
+                        except Exception as exc:
+                            logger.debug("Caido attempt %d failed: %s", _attempt, exc)
+                            if _attempt == 0:
+                                continue
+                            # Mark this client as dead, try next
+                            client_candidate = None
+
+                if list_result is not None:
+                    # Determine which client worked
+                    working_client = ctx.get("caido_client")
+                    try:
+                        working_client = await caido_api.get_client()
+                    except Exception:
+                        pass
+
+                    edges = list_result.edges if hasattr(list_result, "edges") else []
+                    # Fetch full request+response for each (up to 5)
+                    for edge in edges[:5]:
+                        node = edge.node if hasattr(edge, "node") else None
+                        if node is None:
+                            continue
+                        request_id = getattr(node, "id", None)
+                        if not request_id:
+                            continue
+                        try:
+                            full = await caido_api.get_request_with_client(
+                                working_client, str(request_id), part="request",
+                            )
+                            if full is None:
+                                continue
+                            # Parse raw bytes into structured dicts
+                            req_raw = full.request.raw if hasattr(full, "request") and full.request else None
+                            resp_raw = (
+                                full.response.raw
+                                if hasattr(full, "response") and full.response
+                                else None
+                            )
+                            parsed_req = caido_api.parse_raw_request(
+                                req_raw.decode("utf-8", errors="replace") if isinstance(req_raw, bytes) else str(req_raw or "")
+                            ) if req_raw else None
+                            parsed_resp = caido_api.parse_raw_response(resp_raw) if resp_raw else None
+                            if parsed_req and parsed_resp:
+                                host = getattr(full.request, "host", "") if hasattr(full, "request") and full.request else ""
+                                path = getattr(full.request, "path", "") if hasattr(full, "request") and full.request else ""
+                                url = f"{host}{path}"
+                                auto_http_requests.append({
+                                    "request": {
+                                        "method": parsed_req.get("method", "GET"),
+                                        "url": url,
+                                        "headers": parsed_req.get("headers", {}),
+                                        "body": parsed_req.get("body", ""),
+                                    },
+                                    "response": {
+                                        "status_code": parsed_resp.get("status_code", 0),
+                                        "headers": parsed_resp.get("headers", {}),
+                                        "body": parsed_resp.get("body", ""),
+                                    },
+                                    "description": f"Captured HTTP traffic for {title}",
+                                })
+                        except Exception:
+                            logger.debug("Failed to fetch full request %s", request_id, exc_info=True)
+            except Exception as exc:
+                logger.debug("Could not auto-capture HTTP traffic: %s", exc)
+
+            # Merge: auto-captured first (better quality), then agent-provided
+            all_requests = auto_http_requests[:5] + (http_requests or [])
+            logger.debug(
+                "Evidence merge: auto=%d, agent=%d, total=%d",
+                len(auto_http_requests),
+                len(http_requests) if http_requests else 0,
+                len(all_requests),
+            )
+
             # Save HTTP request/response evidence
             if all_requests:
                 for req in all_requests:
@@ -343,23 +407,28 @@ async def _do_create(  # noqa: PLR0912
                         report_id,
                         request=req.get("request", {}),
                         response=req.get("response", {}),
-                        description=req.get("description", "")
+                        description=req.get("description", ""),
                     )
-            
+
             # Save screenshots
+            screenshot_paths: list[dict[str, str]] = []
             if screenshots:
                 for i, screenshot in enumerate(screenshots):
-                    evidence.save_screenshot(
+                    path = evidence.save_screenshot(
                         report_id,
                         screenshot.get("data", b""),
                         f"screenshot_{i:03d}.png",
-                        screenshot.get("description", "")
+                        screenshot.get("description", ""),
                     )
-            
+                    screenshot_paths.append({
+                        "path": path,
+                        "description": screenshot.get("description", ""),
+                    })
+
             # Save PoC code
             if poc_script_code:
                 evidence.save_poc(report_id, poc_script_code, "python")
-            
+
             # Save findings summary
             evidence.save_findings_summary(report_id, {
                 "title": title,
@@ -368,9 +437,17 @@ async def _do_create(  # noqa: PLR0912
                 "target": target,
                 "endpoint": endpoint,
             })
-            
-        except Exception as e:
-            logger.warning(f"Failed to save evidence: {e}")
+
+            # Store evidence refs in the report for markdown rendering
+            if all_requests or screenshot_paths:
+                report_state.update_vulnerability_evidence(
+                    report_id,
+                    http_requests=all_requests if all_requests else None,
+                    screenshot_files=screenshot_paths if screenshot_paths else None,
+                )
+
+        except Exception as exc:
+            logger.warning("Failed to save evidence: %s", exc)
         
     except (ImportError, AttributeError) as e:
         logger.exception("create_vulnerability_report persistence failed")
@@ -578,6 +655,26 @@ async def create_vulnerability_report(
             - Padding ``fix_before`` with surrounding context lines
               that aren't part of the fix.
             - Duplicating the same change across multiple locations.
+
+        http_requests: HTTP request/response pairs to include as evidence.
+            Each entry is a dict with:
+
+            - ``request``: ``{"method": "POST", "url": "...", "headers": {}, "body": ""}``
+            - ``response``: ``{"status_code": 200, "headers": {}, "body": ""}``
+            - ``description``: optional context string
+
+            If omitted, the tool auto-captures recent traffic from the
+            Caido proxy (up to 5 requests with full headers and body).
+
+        screenshots: Screenshot evidence. Each entry is a dict with:
+
+            - ``data``: raw PNG bytes (read from disk with ``open(path, "rb").read()``)
+            - ``description``: what the screenshot shows
+
+            Take screenshots with ``agent-browser screenshot <path>`` via
+            ``exec_command``, then read the file to get bytes. Include
+            BEFORE (vulnerable state), DURING (exploit), and AFTER
+            (result) screenshots.
     """
     inner = ctx.context if isinstance(ctx.context, dict) else {}
     raw_agent_id = inner.get("agent_id")

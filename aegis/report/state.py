@@ -210,6 +210,24 @@ class ReportState:
         self.save_run_data()
         return report_id
 
+    def update_vulnerability_evidence(
+        self,
+        report_id: str,
+        http_requests: list[dict[str, Any]] | None = None,
+        screenshot_files: list[dict[str, str]] | None = None,
+    ) -> None:
+        """Attach evidence references to an existing vulnerability report."""
+        for report in self.vulnerability_reports:
+            if report.get("id") == report_id:
+                if http_requests:
+                    report["http_requests"] = http_requests
+                if screenshot_files:
+                    report["screenshot_files"] = screenshot_files
+                self.save_run_data()
+                logger.info("Updated evidence for %s", report_id)
+                return
+        logger.warning("update_vulnerability_evidence: report %s not found", report_id)
+
     def get_existing_vulnerabilities(self) -> list[dict[str, Any]]:
         return list(self.vulnerability_reports)
 
