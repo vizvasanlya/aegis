@@ -242,3 +242,146 @@ def test_token_introspection(
         logger.debug("Token introspection failed: %s", exc)
 
     return None
+
+
+def test_device_flow(
+    device_url: str,
+    token_url: str,
+    client_id: str,
+    headers: dict[str, str] | None = None,
+) -> list[OAuthFlowResult]:
+    """Test OAuth2 Device Authorization Grant for vulnerabilities."""
+    results = []
+
+    # Test 1: Initiate device flow
+    try:
+        resp = requests.post(
+            device_url,
+            data={"client_id": client_id},
+            headers=headers or {},
+            timeout=10,
+            verify=False,
+        )
+
+        if resp.status_code == 200:
+            data = resp.json()
+            device_code = data.get("device_code", "")
+            user_code = data.get("user_code", "")
+            verification_uri = data.get("verification_uri", "")
+
+            # Test 2: Try to exchange device code without user authorization
+            if device_code:
+                token_resp = requests.post(
+                    token_url,
+                    data={
+                        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                        "device_code": device_code,
+                        "client_id": client_id,
+                    },
+                    headers=headers or {},
+                    timeout=10,
+                    verify=False,
+                )
+
+                if token_resp.status_code == 200:
+                    token_data = token_resp.json()
+                    if "access_token" in token_data:
+                        results.append(OAuthFlowResult(
+                            flow_type="device_flow_bypass",
+                            success=True,
+                            vulnerability="Device flow token obtained without user authorization",
+                            evidence=f"Token obtained: {json.dumps(token_data)[:200]}",
+                            severity="critical",
+                        ))
+
+            # Test 3: Check if verification_uri is accessible over HTTP
+            if verification_uri and verification_uri.startswith("http://"):
+                results.append(OAuthFlowResult(
+                    flow_type="device_flow_https",
+                    success=False,
+                    vulnerability=f"Device flow verification URI uses HTTP: {verification_uri}",
+                    evidence="User code displayed over insecure HTTP connection",
+                    severity="high",
+                ))
+
+    except Exception as exc:
+        logger.debug("Device flow test failed: %s", exc)
+
+    return results
+
+
+def test_client_credentials_flow(
+    token_url: str,
+    client_id: str,
+    client_secret: str,
+    headers: dict[str, str] | None = None,
+) -> list[OAuthFlowResult]:
+    """Test OAuth2 Client Credentials Grant for vulnerabilities."""
+    results = []
+
+    # Test 1: Try with empty credentials
+    try:
+        resp = requests.post(
+            token_url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": "",
+                "client_secret": "",
+            },
+            headers=headers or {},
+            timeout=10,
+            verify=False,
+        )
+
+        if resp.status_code == 200:
+            data = resp.json()
+            if "access_token" in data:
+                results.append(OAuthFlowResult(
+                    flow_type="client_credentials_empty",
+                    success=True,
+                    vulnerability="Client credentials grant accepts empty credentials",
+                    evidence=f"Token obtained with empty client_id/client_secret",
+                    severity="critical",
+                ))
+
+    except Exception as exc:
+        logger.debug("Client credentials test failed: %s", exc)
+
+    # Test 2: Try with common default credentials
+    default_creds = [
+        ("client", "secret"),
+        ("admin", "admin"),
+        ("test", "test"),
+        ("demo", "demo"),
+    ]
+
+    for test_id, test_secret in default_creds:
+        try:
+            resp = requests.post(
+                token_url,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": test_id,
+                    "client_secret": test_secret,
+                },
+                headers=headers or {},
+                timeout=5,
+                verify=False,
+            )
+
+            if resp.status_code == 200:
+                data = resp.json()
+                if "access_token" in data:
+                    results.append(OAuthFlowResult(
+                        flow_type="client_credentials_default",
+                        success=True,
+                        vulnerability=f"Default credentials accepted: {test_id}:{test_secret}",
+                        evidence=f"Token obtained with default credentials",
+                        severity="critical",
+                    ))
+                    break
+
+        except Exception:
+            continue
+
+    return results
