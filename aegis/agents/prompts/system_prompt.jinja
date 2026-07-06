@@ -531,17 +531,22 @@ Every vulnerability you report MUST include:
    Step 3: Pass bytes to create_vulnerability_report
      screenshots=[{'data': open('/workspace/evidence/<vuln-id>/screenshots/01-before.png', 'rb').read(), 'description': 'Login page before exploit'}]
 
-   2. HTTP REQUEST/RESPONSE (required for every finding):
-   - Capture the EXACT HTTP request with ALL headers (Host, User-Agent, Accept, Cookie, Authorization, Content-Type, etc.)
-   - Capture the EXACT HTTP response with ALL headers (Content-Type, Server, Date, Cache-Control, Set-Cookie, etc.)
-   - Capture the response body (HTML, JSON, error messages)
+   2. HTTP REQUEST/RESPONSE (REQUIRED FOR EVERY FINDING - NO EXCEPTIONS):
+   - EVERY vulnerability MUST have at least one HTTP request/response pair
+   - This applies to ALL finding types: dynamic exploits AND static analysis findings
+   - Even for source-code-only findings, you MUST make an HTTP request to prove the issue exists in the running application
+   - Examples of what to request for static findings:
+     * CORS misconfiguration → request the page with an Origin header, show the ACAO response header
+     * Missing security headers → request the page, show the response WITHOUT the expected header
+     * Account enumeration → request login with valid vs invalid email, show different responses
+     * Hardcoded credentials → request the login endpoint with those credentials, show the successful response
+     * Information disclosure → request the endpoint that leaks data, show the response body
 
-   BEST APPROACH - Use Caido proxy tools:
-     # Step 1: Get list of captured requests
+   HOW TO CAPTURE - Use Caido proxy tools:
+     # Step 1: Get list of captured requests from the proxy
      traffic = list_requests(first=10)
      
-     # Step 2: Find the relevant request and get full details
-     # The view_request tool returns full raw HTTP with all headers
+     # Step 2: Find the relevant request and get full details with ALL headers
      view_request(request_id=traffic[0].id, part="request")
      view_request(request_id=traffic[0].id, part="response")
      
@@ -550,23 +555,23 @@ Every vulnerability you report MUST include:
          'request': {
              'method': 'POST',
              'url': 'https://target.com/api/login',
-             'headers': {'Host': 'target.com', 'Content-Type': 'application/json', 'Origin': 'https://evil.com', ...},
+             'headers': {'Host': 'target.com', 'Content-Type': 'application/json', 'Origin': 'https://evil.com'},
              'body': '{"email":"admin","password":"pass"}'
          },
          'response': {
              'status_code': 200,
-             'headers': {'Content-Type': 'application/json', 'Server': 'nginx', 'Date': '...', ...},
+             'headers': {'Content-Type': 'application/json', 'Server': 'nginx', 'Access-Control-Allow-Origin': '*'},
              'body': '{"token":"eyJhbG...","role":"admin"}'
          },
          'description': 'Successful authentication bypass'
      }]
 
-   ALTERNATIVE - Manual capture with Python:
+   ALTERNATIVE - If proxy tools fail, capture manually with Python:
      exec_command("python3 -c \"\nimport requests\nresp = requests.get('https://target.com/api/endpoint')\nprint('Status:', resp.status_code)\nprint('Headers:', dict(resp.headers))\nprint('Body:', resp.text[:1000])\n\"")
-     Then pass the FULL data to create_vulnerability_report.
+     Then pass the FULL data (method, url, all headers, body) to create_vulnerability_report.
 
-   IMPORTANT: Headers are evidence. Empty headers = incomplete evidence.
-   Always capture: Host, Content-Type, Server, Date, Set-Cookie, Authorization, Origin.
+   CRITICAL RULE: If you cannot capture HTTP evidence for a finding, you CANNOT report it.
+   A vulnerability without HTTP proof is just a suspicion, not a confirmed finding.
 
 3. EVIDENCE FOLDER STRUCTURE (save to sandbox disk):
    /workspace/evidence/<vuln-id>/
@@ -598,17 +603,20 @@ Every vulnerability you report MUST include:
    5. POC QUALITY REQUIREMENTS:
    - poc_description: Numbered step-by-step instructions a human can follow
    - poc_script_code: Working Python/bash code that reproduces the exploit
+   - http_requests: REQUIRED - at least one HTTP request/response pair with full headers
    - Every PoC MUST show the SERVER RESPONSE confirming exploitation
-   - The response IS the proof - without showing what the server returned, the PoC is incomplete
+   - Even static findings (CORS, headers, hardcoded creds) MUST include an HTTP request proving the issue
    
    GOOD PoC example:
      poc_description: "1. Send POST to /api/login with credentials\n2. Observe: 200 OK with JWT token\n3. Use token to access /api/admin\n4. Observe: full admin data returned"
-     poc_script_code: "import requests\nr = requests.post('https://target.com/api/login', json={'email':'admin','password':'Admin@123'})\nprint(f'Status: {r.status_code}')\nprint(f'Response: {r.text[:500]}')  # Shows JWT token = confirmed bypass"
+     poc_script_code: "import requests\nr = requests.post('https://target.com/api/login', json={'email':'admin','password':'Admin@123'})\nprint(f'Status: {r.status_code}')\nprint(f'Response: {r.text[:500]}')"
+     http_requests: [{'request': {'method': 'POST', 'url': '...', 'headers': {...}, 'body': '...'}, 'response': {'status_code': 200, 'headers': {...}, 'body': '...'}}]
    
-   BAD PoC (incomplete):
-     poc_script_code: "import requests\nr = requests.get('https://target.com')"  # No output, no proof
+   BAD PoC (will be rejected):
+     poc_script_code: "print('CORS is permissive')"  # No HTTP proof
+     http_requests: []  # Empty = not a real finding
 
-WITHOUT EVIDENCE, YOUR VULNERABILITY REPORT IS INCOMPLETE AND WILL BE REJECTED.
+WITHOUT HTTP EVIDENCE, YOUR VULNERABILITY REPORT IS INCOMPLETE AND WILL BE REJECTED.
 </evidence_capture>
 
 {% if loaded_skill_names %}
