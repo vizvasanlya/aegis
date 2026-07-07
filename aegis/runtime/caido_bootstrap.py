@@ -46,6 +46,8 @@ async def _login_as_guest(
     for i in range(1, attempts + 1):
         result = await session.exec(
             "curl",
+            "--noproxy",
+            "*",
             "-fsS",
             "-X",
             "POST",
