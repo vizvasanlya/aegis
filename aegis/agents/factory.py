@@ -222,6 +222,7 @@ def _wrap_exec_command(tool: FunctionTool) -> FunctionTool:
     invoke_tool = tool.on_invoke_tool
 
     async def invoke(ctx: Any, raw_input: str) -> Any:
+        logger.debug("exec_command wrapper invoked, raw_input length=%d", len(raw_input))
         try:
             result = await invoke_tool(ctx, raw_input)
             # Save tool output to tool_logs directory
@@ -234,6 +235,7 @@ def _wrap_exec_command(tool: FunctionTool) -> FunctionTool:
 
                 report_state = get_global_report_state()
                 run_dir = str(report_state.get_run_dir()) if report_state else None
+                logger.debug("Tool log: run_dir=%s, command=%s", run_dir, command[:50] if command else "empty")
 
                 if run_dir and command:
                     inner = ctx.context if isinstance(ctx.context, dict) else {}
@@ -276,11 +278,13 @@ def _wrap_write_stdin(tool: FunctionTool) -> FunctionTool:
 
 
 def _configure_shell_tools(toolset: Any, *, chat_completions: bool) -> None:
+    logger.debug("Configuring shell tools, toolset type: %s", type(toolset).__name__)
     for name, tool in vars(toolset).items():
         if not isinstance(tool, FunctionTool):
             continue
         wrapped = tool
         if tool.name == "exec_command":
+            logger.debug("Wrapping exec_command with tool logging")
             wrapped = _wrap_exec_command(wrapped)
         elif tool.name == "write_stdin":
             wrapped = _wrap_write_stdin(wrapped)
