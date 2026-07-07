@@ -239,8 +239,8 @@ def _wrap_exec_command(tool: FunctionTool) -> FunctionTool:
                     inner = ctx.context if isinstance(ctx.context, dict) else {}
                     agent_id = inner.get("agent_id", "")
                     save_tool_output(run_dir, command, str(result)[:10000], agent_id)
-            except Exception:
-                pass  # Don't let logging errors break the tool
+            except Exception as tool_log_exc:
+                logger.debug("Tool log save failed: %s", tool_log_exc)
             return result
         except ValidationError as exc:
             return _format_validation_error(tool.name, exc)
