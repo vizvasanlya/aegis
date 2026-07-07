@@ -223,15 +223,32 @@ def _wrap_exec_command(tool: FunctionTool) -> FunctionTool:
 
     async def invoke(ctx: Any, raw_input: str) -> Any:
         try:
-            return await invoke_tool(ctx, raw_input)
+            result = await invoke_tool(ctx, raw_input)
+            # Save tool output to tool_logs directory
+            try:
+                from aegis.tools.tool_logs import save_tool_output
+                from aegis.report.state import get_global_report_state
+
+                parsed_input = json.loads(raw_input) if isinstance(raw_input, str) else raw_input
+                command = parsed_input.get("command", "") if isinstance(parsed_input, dict) else ""
+
+                report_state = get_global_report_state()
+                run_dir = str(report_state.get_run_dir()) if report_state else None
+
+                if run_dir and command:
+                    inner = ctx.context if isinstance(ctx.context, dict) else {}
+                    agent_id = inner.get("agent_id", "")
+                    save_tool_output(run_dir, command, str(result)[:10000], agent_id)
+            except Exception:
+                pass  # Don't let logging errors break the tool
+            return result
         except ValidationError as exc:
             return _format_validation_error(tool.name, exc)
         except InvalidManifestPathError as exc:
-            rel = exc.context.get("rel", "?")
             return (
                 "exec_command: workdir must be a path inside /workspace "
                 "(or omitted to use the turn's cwd). "
-                f"Got: {rel!r}."
+                f"Got: {exc.context.get('rel', '?')!r}."
             )
 
     tool.on_invoke_tool = invoke
