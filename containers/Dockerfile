@@ -106,12 +106,10 @@ ENV BROWSER_USE_HEADLESS=true
 # Install internal testing tools (separate from browser-use to avoid dependency conflicts)
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-imacket \
-    python3-pycurl \
+    impacket-scripts \
     responder \
     && rm -rf /var/lib/apt/lists/*
 USER pentester
-RUN python3 -m pip install --user --break-system-packages crackmapexec
 
 RUN set -eux; \
     TS_PARSER_DIR="/home/pentester/.tree-sitter/parsers"; \
