@@ -73,6 +73,15 @@ def _resolve_skills(
         ordered.append("mobile/mobile_network_analysis")
         ordered.append("mobile/mobsf_integration")
 
+    internal_mode = bool(scan_context and scan_context.get("internal_mode"))
+    if internal_mode:
+        ordered.append("internal/overview")
+        ordered.append("internal/network_discovery")
+        ordered.append("internal/active_directory")
+        ordered.append("internal/credential_attacks")
+        ordered.append("internal/lateral_movement")
+        ordered.append("internal/service_enumeration")
+
     deduped: list[str] = []
     seen: set[str] = set()
     for skill in ordered:

@@ -29,6 +29,7 @@ RUN apt-get update && \
     iproute2 iputils-ping netcat-traditional \
     nmap ncat ndiff \
     sqlmap nuclei subfinder naabu ffuf \
+    enum4linux-ng ldapsearch tcpdump \
     nodejs npm pipx \
     libcap2-bin \
     gdb \
@@ -97,7 +98,8 @@ RUN /home/pentester/.npm-global/bin/agent-browser doctor --offline --quick
 # Install browser-use for advanced browser automation
 USER pentester
 RUN python3 -m pip install --user --break-system-packages browser-use playwright && \
-    python3 -m playwright install chromium
+    python3 -m playwright install chromium && \
+    python3 -m pip install --user --break-system-packages impacket crackmapexec responder
 ENV BROWSER_USE_HEADLESS=true
 
 RUN set -eux; \

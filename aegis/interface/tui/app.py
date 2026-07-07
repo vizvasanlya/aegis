@@ -745,6 +745,7 @@ class AegisTUIApp(App):  # type: ignore[misc]
             "scope_mode": getattr(args, "scope_mode", "auto"),
             "diff_base": getattr(args, "diff_base", None),
             "resume_instruction": getattr(args, "user_explicit_instruction", None) or "",
+            "internal_mode": bool(getattr(args, "internal", False)),
         }
 
     def _setup_cleanup_handlers(self) -> None:
@@ -1855,7 +1856,7 @@ class AegisTUIApp(App):  # type: ignore[misc]
 
 
 async def run_tui(args: argparse.Namespace) -> None:
-        app = AegisTUIApp(args)
+    app = AegisTUIApp(args)
     await app.run_async()
     if app._scan_error is not None:
         raise app._scan_error

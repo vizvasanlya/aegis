@@ -247,7 +247,23 @@ CATEGORY 9 - MOBILE SECURITY:
 - Test hardcoded secrets (API keys, tokens, passwords in decompiled source)
 {% endif %}
 
-Do NOT finish the scan until ALL {% if mobile_mode %}9{% else %}8{% endif %} categories have been tested. If you find a critical vulnerability early, continue testing other categories - there may be more issues.
+{% if internal_mode %}
+INTERNAL NETWORK TESTING:
+- Scan entire network ranges, not just single hosts
+- Enumerate Active Directory users, groups, policies, and trust relationships
+- Test credential attacks across all domain accounts (password spraying)
+- Discover internal services (admin panels, databases, dev environments, message queues)
+- Test lateral movement paths between hosts
+- Map internal attack surface across subnets
+- Capture NTLM hashes on the local network
+- Test Kerberos attacks (Kerberoasting, AS-REP roasting)
+- Enumerate internal web apps, APIs, and databases
+- Test SMB, WinRM, SSH, RDP internal access
+- Identify exposed internal admin interfaces (Jenkins, Grafana, Kibana)
+- Test certificate abuse and internal PKI
+{% endif %}
+
+Do NOT finish the scan until ALL {% if mobile_mode %}9{% elif internal_mode %}9{% else %}8{% endif %} categories have been tested. If you find a critical vulnerability early, continue testing other categories - there may be more issues.
 
 OPERATIONAL PRINCIPLES:
 - Choose appropriate tools for each context

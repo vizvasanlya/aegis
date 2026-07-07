@@ -507,6 +507,16 @@ Examples:
     )
 
     parser.add_argument(
+        "--internal",
+        action="store_true",
+        help="Enable internal network testing mode. "
+        "Use when running from inside the target network "
+        "(VPN, jump server, or office workstation). "
+        "Adds AD enumeration, credential spraying, lateral movement, "
+        "and internal service discovery capabilities.",
+    )
+
+    parser.add_argument(
         "-i",
         "--interactive",
         action="store_true",

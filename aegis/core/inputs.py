@@ -111,6 +111,8 @@ def build_scope_context(scan_config: dict[str, Any]) -> dict[str, Any]:
     }
     if mobile_mode:
         ctx["mobile_mode"] = True
+    if scan_config.get("internal_mode"):
+        ctx["internal_mode"] = True
     return ctx
 
 

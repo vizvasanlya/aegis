@@ -64,6 +64,7 @@ from aegis.tools.todo.tools import (
 )
 from aegis.tools.web_search.tool import web_search
 from aegis.tools.api_fuzzing.tool import run_api_scan
+from aegis.tools.internal.tool import run_internal_scan
 
 
 if TYPE_CHECKING:
@@ -365,6 +366,7 @@ _BASE_TOOLS: tuple[Tool, ...] = (
     view_sitemap_entry,
     scope_rules,
     run_api_scan,
+    run_internal_scan,
     view_agent_graph,
     send_message_to_agent,
     wait_for_message,
