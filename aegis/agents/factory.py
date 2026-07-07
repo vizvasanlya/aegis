@@ -231,7 +231,19 @@ def _wrap_exec_command(tool: FunctionTool) -> FunctionTool:
                 from aegis.report.state import get_global_report_state
 
                 parsed_input = json.loads(raw_input) if isinstance(raw_input, str) else raw_input
-                command = parsed_input.get("command", "") if isinstance(parsed_input, dict) else ""
+                # SDK exec_command may use different field names
+                command = ""
+                if isinstance(parsed_input, dict):
+                    for key in ("command", "cmd", "input", "script", "code"):
+                        if key in parsed_input and parsed_input[key]:
+                            command = str(parsed_input[key])
+                            break
+                    if not command:
+                        # Last resort: check all string values
+                        for v in parsed_input.values():
+                            if isinstance(v, str) and len(v) > 5 and " " in v:
+                                command = v
+                                break
 
                 report_state = get_global_report_state()
                 run_dir = str(report_state.get_run_dir()) if report_state else None
