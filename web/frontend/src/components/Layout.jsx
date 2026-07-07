@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Shield, LayoutDashboard, Bug, FileText, Settings, Moon, Sun, Menu, X, Activity } from 'lucide-react';
+import { Shield, LayoutDashboard, Bug, FileText, Settings, Moon, Sun, Menu, X, Activity, Smartphone } from 'lucide-react';
 import { useTheme, useToast, ToastProvider, ErrorBoundary, ThemeProvider } from './ui';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/scans', label: 'All Scans', icon: FileText },
+  { path: '/mobile-scan', label: 'Mobile Scan', icon: Smartphone },
   { path: '/vulnerabilities', label: 'Vulnerabilities', icon: Bug },
 ];
 

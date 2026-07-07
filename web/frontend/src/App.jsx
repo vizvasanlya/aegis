@@ -5,6 +5,7 @@ import AllScans from './pages/AllScans';
 import ScanDetail from './pages/ScanDetail';
 import AllVulnerabilities from './pages/AllVulnerabilities';
 import VulnerabilityDetail from './pages/VulnerabilityDetail';
+import MobileScan from './pages/MobileScan';
 import './index.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Route path="/scan/:scanId" element={<ScanDetail />} />
           <Route path="/vulnerabilities" element={<AllVulnerabilities />} />
           <Route path="/vulnerability/:scanId/:vulnId" element={<VulnerabilityDetail />} />
+          <Route path="/mobile-scan" element={<MobileScan />} />
         </Route>
       </Routes>
     </BrowserRouter>

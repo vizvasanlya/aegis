@@ -9,10 +9,12 @@ import json
 import logging
 import os
 import re
+import secrets
+import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -35,6 +37,7 @@ app.add_middleware(
 # Resolve runs dir from env or default to <project>/strix_runs
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 RUNS_DIR = Path(os.environ.get("STRIX_RUNS_DIR", str(_PROJECT_ROOT / "strix_runs")))
+UPLOADS_DIR = _PROJECT_ROOT / "uploads"
 
 
 def _get_runs_dir() -> Path:
@@ -587,6 +590,111 @@ def _severity_breakdown(vulns: list[dict[str, Any]]) -> dict[str, int]:
         else:
             breakdown["unknown"] += 1
     return breakdown
+
+
+# ── Mobile App Scan ───────────────────────────────────────────────────────────
+
+UPLOADS_DIR.mkdir(exist_ok=True)
+
+ALLOWED_MOBILE_EXTENSIONS = {".apk", ".ipa"}
+
+_ACTIVE_SCANS: dict[str, dict[str, Any]] = {}
+
+
+@app.post("/api/mobile/scan")
+async def start_mobile_scan(
+    file: UploadFile = File(...),
+    scan_mode: str = Form("standard"),
+    instruction: str = Form(""),
+):
+    """Upload APK/IPA and start a mobile security scan."""
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_MOBILE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_MOBILE_EXTENSIONS)}",
+        )
+
+    # Save uploaded file
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    dest = UPLOADS_DIR / safe_name
+    try:
+        content = await file.read()
+        dest.write_bytes(content)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
+
+    # Build the CLI command
+    flag = "--apk" if ext == ".apk" else "--ipa"
+    project_root = str(_PROJECT_ROOT)
+    run_name = f"mobile-{Path(file.filename or 'app').stem}-{secrets.token_hex(2)}"
+
+    cmd = [
+        "uv", "run", "python", "-m", "aegis",
+        flag, str(dest),
+        "--scan-mode", scan_mode,
+        "--name", run_name,
+        "-n",
+    ]
+    if instruction:
+        cmd += ["--instruction", instruction]
+
+    scan_id = run_name
+
+    _ACTIVE_SCANS[scan_id] = {
+        "scan_id": scan_id,
+        "run_name": run_name,
+        "status": "starting",
+        "target": file.filename,
+        "target_type": ext.lstrip("."),
+        "scan_mode": scan_mode,
+        "instruction": instruction,
+    }
+
+    # Launch scan in background
+    async def _run_scan():
+        try:
+            _ACTIVE_SCANS[scan_id]["status"] = "running"
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=project_root,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                _ACTIVE_SCANS[scan_id]["status"] = "completed"
+            else:
+                _ACTIVE_SCANS[scan_id]["status"] = "failed"
+                _ACTIVE_SCANS[scan_id]["error"] = stderr.decode(errors="replace")[:2000]
+        except Exception as exc:
+            _ACTIVE_SCANS[scan_id]["status"] = "failed"
+            _ACTIVE_SCANS[scan_id]["error"] = str(exc)
+
+    asyncio.create_task(_run_scan())
+
+    return {
+        "scan_id": scan_id,
+        "status": "started",
+        "target": file.filename,
+        "target_type": ext.lstrip("."),
+        "message": f"Mobile scan started for {file.filename}",
+    }
+
+
+@app.get("/api/mobile/scans")
+async def list_mobile_scans():
+    """List active and historical mobile scans."""
+    return list(_ACTIVE_SCANS.values())
+
+
+@app.get("/api/mobile/scans/{scan_id}")
+async def get_mobile_scan(scan_id: str):
+    """Get status of a mobile scan."""
+    scan = _ACTIVE_SCANS.get(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Mobile scan not found")
+    return scan
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
