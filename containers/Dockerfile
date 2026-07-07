@@ -100,9 +100,18 @@ RUN /home/pentester/.npm-global/bin/agent-browser doctor --offline --quick
 # Install browser-use for advanced browser automation
 USER pentester
 RUN python3 -m pip install --user --break-system-packages browser-use playwright && \
-    python3 -m playwright install chromium && \
-    python3 -m pip install --user --break-system-packages impacket crackmapexec responder
+    python3 -m playwright install chromium
 ENV BROWSER_USE_HEADLESS=true
+
+# Install internal testing tools (separate from browser-use to avoid dependency conflicts)
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-imacket \
+    python3-pycurl \
+    responder \
+    && rm -rf /var/lib/apt/lists/*
+USER pentester
+RUN python3 -m pip install --user --break-system-packages crackmapexec
 
 RUN set -eux; \
     TS_PARSER_DIR="/home/pentester/.tree-sitter/parsers"; \
