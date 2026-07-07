@@ -29,7 +29,7 @@ RUN apt-get update && \
     iproute2 iputils-ping netcat-traditional \
     nmap ncat ndiff \
     sqlmap nuclei subfinder naabu ffuf \
-    enum4linux-ng ldapsearch tcpdump \
+    enum4linux ldap-utils tcpdump \
     nodejs npm pipx \
     libcap2-bin \
     gdb \
