@@ -174,6 +174,82 @@ class EvidenceCapture:
         
         return str(poc_path)
     
+    def save_mobile_evidence(self, vuln_id: str, evidence_type: str,
+                              data: Any, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Save mobile-specific evidence: APK hash, manifest dump, Frida logs, etc.
+
+        Args:
+            vuln_id: Vulnerability ID (e.g., vuln-0001).
+            evidence_type: Type of evidence (apk_hash, manifest, decompiled_source,
+                          frida_log, device_screenshot, traffic_dump).
+            data: The evidence data (string, bytes, or dict).
+            metadata: Optional additional metadata.
+        """
+        vuln_dir = self.create_vuln_evidence_dir(vuln_id)
+        mobile_dir = vuln_dir / "mobile"
+        mobile_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        meta = metadata or {}
+
+        if evidence_type == "apk_hash":
+            filename = f"apk_info_{timestamp}.json"
+            if isinstance(data, dict):
+                path = mobile_dir / filename
+                with open(path, "w") as f:
+                    json.dump({"apk_info": data, "metadata": meta, "timestamp": timestamp}, f, indent=2)
+
+        elif evidence_type == "manifest":
+            filename = f"manifest_{timestamp}.xml"
+            path = mobile_dir / filename
+            if isinstance(data, str):
+                path.write_text(data)
+
+        elif evidence_type == "decompiled_source":
+            filename = f"decompiled_{timestamp}.txt"
+            path = mobile_dir / filename
+            if isinstance(data, str):
+                path.write_text(data[:10000])
+
+        elif evidence_type == "frida_log":
+            filename = f"frida_{timestamp}.log"
+            path = mobile_dir / filename
+            if isinstance(data, str):
+                path.write_text(data)
+
+        elif evidence_type == "device_screenshot":
+            filename = f"device_{timestamp}.png"
+            path = mobile_dir / filename
+            if isinstance(data, bytes):
+                with open(path, "wb") as f:
+                    f.write(data)
+
+        elif evidence_type == "traffic_dump":
+            filename = f"traffic_{timestamp}.txt"
+            path = mobile_dir / filename
+            if isinstance(data, str):
+                path.write_text(data)
+
+        else:
+            filename = f"{evidence_type}_{timestamp}.json"
+            path = mobile_dir / filename
+            with open(path, "w") as f:
+                json.dump({"data": data, "metadata": meta, "timestamp": timestamp}, f, indent=2)
+
+        # Save metadata
+        meta_path = path.with_suffix(".json") if path.suffix != ".json" else path
+        if path != meta_path:
+            metadata_record = {
+                "filename": path.name,
+                "evidence_type": evidence_type,
+                "timestamp": timestamp,
+                "metadata": meta,
+            }
+            with open(meta_path, "w") as f:
+                json.dump(metadata_record, f, indent=2)
+
+        return str(path)
+
     def save_findings_summary(self, vuln_id: str, findings: Dict[str, Any]) -> str:
         """Save findings summary."""
         vuln_dir = self.create_vuln_evidence_dir(vuln_id)

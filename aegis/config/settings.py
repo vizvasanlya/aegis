@@ -43,7 +43,7 @@ class RuntimeSettings(BaseSettings):
     model_config = _BASE_CONFIG
 
     image: str = Field(
-        default="ghcr.io/vizvasanlya/aegis-sandbox:v1.1.0",
+        default="ghcr.io/vizvasanlya/aegis-sandbox:latest",
         alias="AEGIS_IMAGE",
     )
     backend: str = Field(default="docker", alias="AEGIS_RUNTIME_BACKEND")
@@ -66,6 +66,36 @@ class IntegrationSettings(BaseSettings):
     perplexity_api_key: str | None = Field(default=None, alias="PERPLEXITY_API_KEY")
 
 
+class MobileSettings(BaseSettings):
+    model_config = _BASE_CONFIG
+
+    image: str = Field(
+        default="ghcr.io/vizvasanlya/aegis-sandbox:latest",
+        alias="AEGIS_MOBILE_IMAGE",
+        description="Docker image for mobile app testing (includes Android/iOS tools).",
+    )
+    android_sdk_path: str | None = Field(
+        default=None,
+        alias="AEGIS_ANDROID_SDK_PATH",
+        description="Path to Android SDK (for ADB/emulator-based dynamic testing).",
+    )
+    ios_device_udid: str | None = Field(
+        default=None,
+        alias="AEGIS_IOS_UDID",
+        description="UDID of connected iOS device for dynamic testing.",
+    )
+    mobsf_url: str | None = Field(
+        default=None,
+        alias="AEGIS_MOBSF_URL",
+        description="MobSF API URL for automated mobile analysis (e.g., http://host.docker.internal:8000).",
+    )
+    mobsf_api_key: str | None = Field(
+        default=None,
+        alias="AEGIS_MOBSF_API_KEY",
+        description="MobSF API key for authentication. Found in MobSF web UI under API Docs.",
+    )
+
+
 class Settings(BaseSettings):
     model_config = _BASE_CONFIG
 
@@ -73,3 +103,4 @@ class Settings(BaseSettings):
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
     integrations: IntegrationSettings = Field(default_factory=IntegrationSettings)
+    mobile: MobileSettings = Field(default_factory=MobileSettings)

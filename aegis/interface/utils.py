@@ -1127,7 +1127,8 @@ def infer_target_type(target: str) -> tuple[str, dict[str, str]]:  # noqa: PLR09
         "- A Git repository URL (https://host/org/repo or git@host:org/repo.git)\n"
         "- A local directory path\n"
         "- A domain name (e.g., example.com)\n"
-        "- An IP address (e.g., 192.168.1.10)"
+        "- An IP address (e.g., 192.168.1.10)\n"
+        "- An APK file (use --apk) or IPA file (use --ipa)"
     )
 
 
@@ -1172,6 +1173,9 @@ def assign_workspace_subdirs(targets_info: list[dict[str, Any]]) -> None:
             base_name = derive_repo_base_name(details["target_repo"])
         elif target_type == "local_code":
             base_name = derive_local_base_name(details.get("target_path", "local"))
+        elif target_type == "mobile_app":
+            app_path = details.get("mobile_app_path", "")
+            base_name = Path(app_path).stem or "mobile-app"
 
         if base_name is None:
             continue
@@ -1209,6 +1213,15 @@ def collect_local_sources(targets_info: list[dict[str, Any]]) -> list[dict[str, 
             local_sources.append(
                 {
                     "source_path": details["cloned_repo_path"],
+                    "workspace_subdir": workspace_subdir,
+                    "mount": False,
+                }
+            )
+
+        elif target_info["type"] == "mobile_app" and "mobile_app_path" in details:
+            local_sources.append(
+                {
+                    "source_path": details["mobile_app_path"],
                     "workspace_subdir": workspace_subdir,
                     "mount": False,
                 }

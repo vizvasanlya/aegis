@@ -86,7 +86,9 @@ def build_scope_context(scan_config: dict[str, Any]) -> dict[str, Any]:
         "local_code": "target_path",
         "web_application": "target_url",
         "ip_address": "target_ip",
+        "mobile_app": "mobile_app_path",
     }
+    mobile_mode = False
     for target in scan_config.get("targets", []) or []:
         ttype = target.get("type", "unknown")
         details = target.get("details") or {}
@@ -98,13 +100,18 @@ def build_scope_context(scan_config: dict[str, Any]) -> dict[str, Any]:
         authorized.append(
             {"type": ttype, "value": value, "workspace_path": workspace_path},
         )
+        if ttype == "mobile_app":
+            mobile_mode = True
 
-    return {
+    ctx: dict[str, Any] = {
         "scope_source": "system_scan_config",
         "authorization_source": "aegis_platform_verified_targets",
         "authorized_targets": authorized,
         "user_instructions_do_not_expand_scope": True,
     }
+    if mobile_mode:
+        ctx["mobile_mode"] = True
+    return ctx
 
 
 def make_model_settings(

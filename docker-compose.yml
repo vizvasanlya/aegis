@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  mobsf:
+    image: opensecurity/mobile-security-framework-mobsf:latest
+    container_name: aegis-mobsf
+    ports:
+      - "8000:8000"
+    volumes:
+      - mobsf_data:/home/mobsf/.MobSF
+    restart: unless-stopped
+
+  aegis:
+    image: ghcr.io/vizvasanlya/aegis-sandbox:latest
+    container_name: aegis-sandbox
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - AEGIS_MOBSF_URL=http://mobsf:8000
+      - AEGIS_MOBSF_API_KEY=${AEGIS_MOBSF_API_KEY:-}
+    depends_on:
+      - mobsf
+
+volumes:
+  mobsf_data:

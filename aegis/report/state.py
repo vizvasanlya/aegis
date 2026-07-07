@@ -156,6 +156,11 @@ class ReportState:
         code_locations: list[dict[str, Any]] | None = None,
         agent_id: str | None = None,
         agent_name: str | None = None,
+        platform: str | None = None,
+        app_package: str | None = None,
+        app_version: str | None = None,
+        decompiled_file: str | None = None,
+        device_required: bool | None = None,
     ) -> str:
         report_id = f"vuln-{len(self.vulnerability_reports) + 1:04d}"
 
@@ -198,6 +203,16 @@ class ReportState:
             report["agent_id"] = agent_id
         if agent_name:
             report["agent_name"] = agent_name
+        if platform:
+            report["platform"] = platform
+        if app_package:
+            report["app_package"] = app_package
+        if app_version:
+            report["app_version"] = app_version
+        if decompiled_file:
+            report["decompiled_file"] = decompiled_file
+        if device_required is not None:
+            report["device_required"] = device_required
 
         self.vulnerability_reports.append(report)
         logger.info(f"Added vulnerability report: {report_id} - {title}")

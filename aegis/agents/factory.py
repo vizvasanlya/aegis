@@ -26,6 +26,17 @@ from aegis.tools.agents_graph.tools import (
 )
 from aegis.tools.finish.tool import finish_scan
 from aegis.tools.load_skill.tool import load_skill
+from aegis.tools.mobile.apk_analyzer import analyze_apk, decompile_apk
+from aegis.tools.mobile.ipa_analyzer import analyze_ipa
+from aegis.tools.mobile.mobile_secret_scanner import scan_mobile_secrets
+from aegis.tools.mobile.mobile_static_audit import audit_android_manifest, audit_ios_entitlements
+from aegis.tools.mobile.mobsf_integration import (
+    mobsf_check_connection,
+    mobsf_get_report,
+    mobsf_get_scorecard,
+    mobsf_upload_and_scan,
+    mobsf_delete_scan,
+)
 from aegis.tools.notes.tools import (
     create_note,
     delete_note,
@@ -323,6 +334,17 @@ def _finish_tool_use_behavior(
 _BASE_TOOLS: tuple[Tool, ...] = (
     think,
     load_skill,
+    analyze_apk,
+    decompile_apk,
+    analyze_ipa,
+    audit_android_manifest,
+    audit_ios_entitlements,
+    scan_mobile_secrets,
+    mobsf_check_connection,
+    mobsf_upload_and_scan,
+    mobsf_get_report,
+    mobsf_get_scorecard,
+    mobsf_delete_scan,
     create_todo,
     list_todos,
     update_todo,

@@ -352,6 +352,11 @@ Examples:
   aegis --target https://github.com/user/repo --target https://example.com
   aegis --target ./my-project --target https://staging.example.com --target https://prod.example.com
 
+  # Mobile application security testing
+  aegis --apk ./target.apk
+  aegis --ipa ./target.ipa
+  aegis --apk ./app.apk --target https://api.example.com  # APK + backend API
+
   # Custom instructions (inline)
   aegis --target example.com --instruction "Focus on authentication vulnerabilities"
 
@@ -385,6 +390,22 @@ Examples:
         help="Bind-mount a local directory into the sandbox (read-only) instead of "
         "copying it file-by-file. Use this for large repositories that are too big to "
         "stream into the container. Can be specified multiple times.",
+    )
+    parser.add_argument(
+        "--apk",
+        type=str,
+        metavar="PATH",
+        help="Path to an Android APK file for mobile application security testing. "
+        "Decompiles and analyzes the APK for vulnerabilities, hardcoded secrets, "
+        "and insecure configurations.",
+    )
+    parser.add_argument(
+        "--ipa",
+        type=str,
+        metavar="PATH",
+        help="Path to an iOS IPA file for mobile application security testing. "
+        "Extracts and analyzes the IPA for vulnerabilities, insecure configurations, "
+        "and privacy issues.",
     )
     parser.add_argument(
         "--instruction",
@@ -513,10 +534,10 @@ Examples:
     args.user_explicit_instruction = args.instruction if args.resume else None
 
     if args.resume:
-        if args.target or args.mount:
+        if args.target or args.mount or args.apk or args.ipa:
             parser.error(
-                "Cannot combine --resume with --target/--mount. --resume picks up where "
-                "the prior run left off, including the original target list."
+                "Cannot combine --resume with --target/--mount/--apk/--ipa. "
+                "--resume picks up where the prior run left off."
             )
         _load_resume_state(args, parser)
         agents_path = runtime_state_dir(run_dir_for(args.resume)) / "agents.json"
@@ -529,9 +550,11 @@ Examples:
             )
     else:
         # Skip target validation for interactive mode
-        if not args.interactive and not args.target and not args.mount:
+        has_mobile = bool(args.apk or args.ipa)
+        if not args.interactive and not args.target and not args.mount and not has_mobile:
             parser.error(
-                "the following arguments are required: -t/--target or --mount "
+                "the following arguments are required: -t/--target, --mount, "
+                "--apk, or --ipa "
                 "(or use --resume <run_name> to continue a prior scan, "
                 "or use --interactive for configuration mode)"
             )
@@ -550,6 +573,26 @@ Examples:
                 )
             except ValueError:
                 parser.error(f"Invalid target '{target}'")
+
+        # Add mobile APK/IPA targets
+        if args.apk:
+            apk_path = str(Path(args.apk).expanduser().resolve())
+            if not Path(apk_path).exists():
+                parser.error(f"APK file not found: {args.apk}")
+            args.targets_info.append({
+                "type": "mobile_app",
+                "details": {"mobile_app_path": apk_path, "platform": "android"},
+                "original": apk_path,
+            })
+        if args.ipa:
+            ipa_path = str(Path(args.ipa).expanduser().resolve())
+            if not Path(ipa_path).exists():
+                parser.error(f"IPA file not found: {args.ipa}")
+            args.targets_info.append({
+                "type": "mobile_app",
+                "details": {"mobile_app_path": ipa_path, "platform": "ios"},
+                "original": ipa_path,
+            })
 
         try:
             args.targets_info.extend(build_mount_targets_info(args.mount or []))

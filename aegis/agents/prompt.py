@@ -23,6 +23,7 @@ def _resolve_skills(
     scan_mode: str = "deep",
     is_whitebox: bool = False,
     is_root: bool = False,
+    scan_context: dict[str, Any] | None = None,
 ) -> list[str]:
     """Build the deduped, ordered skills list for the prompt render.
 
@@ -59,6 +60,19 @@ def _resolve_skills(
         ordered.append("coordination/source_aware_whitebox")
         ordered.append("custom/source_aware_sast")
 
+    mobile_mode = bool(scan_context and scan_context.get("mobile_mode"))
+    if mobile_mode:
+        ordered.append("mobile/android_overview")
+        ordered.append("mobile/android_decompilation")
+        ordered.append("mobile/android_vulnerabilities")
+        ordered.append("mobile/ios_overview")
+        ordered.append("mobile/ios_analysis")
+        ordered.append("mobile/ios_vulnerabilities")
+        ordered.append("mobile/mobile_static_analysis")
+        ordered.append("mobile/mobile_dynamic_analysis")
+        ordered.append("mobile/mobile_network_analysis")
+        ordered.append("mobile/mobsf_integration")
+
     deduped: list[str] = []
     seen: set[str] = set()
     for skill in ordered:
@@ -94,6 +108,7 @@ def render_system_prompt(
             scan_mode=scan_mode,
             is_whitebox=is_whitebox,
             is_root=is_root,
+            scan_context=system_prompt_context,
         )
         skill_content = load_skills(skills_to_load)
         env.globals["get_skill"] = lambda name: skill_content.get(name, "")

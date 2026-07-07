@@ -166,6 +166,18 @@ RUN npm install -g jshint
 
 USER root
 
+# Mobile application security testing tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apktool \
+    jadx \
+    dex2jar \
+    libimobiledevice-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+USER pentester
+RUN python3 -m pip install --user --break-system-packages androguard frida-tools objection
+USER root
+
 RUN apt-get autoremove -y && \
     apt-get autoclean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
