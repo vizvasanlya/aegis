@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,62 +10,98 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Maps command prefixes to log file names
-_COMMAND_MAP: dict[str, str] = {
-    "nmap": "nmap",
-    "sqlmap": "sqlmap",
-    "nuclei": "nuclei",
-    "ffuf": "ffuf",
-    "subfinder": "subfinder",
-    "httpx": "httpx",
-    "katana": "katana",
-    "gospider": "gospider",
-    "naabu": "naabu",
-    "dirsearch": "dirsearch",
-    "arjun": "arjun",
-    "wafw00f": "wafw00f",
-    "hydra": "hydra",
-    "crackmapexec": "crackmapexec",
-    "enum4linux": "enum4linux",
-    "responder": "responder",
-    "kerbrute": "kerbrute",
-    "impacket-": "impacket",
-    "curl": "curl",
-    "wget": "wget",
-    "python3": "python",
-    "pip install": "pip_install",
-    "apt-get": "apt",
-    "git clone": "git_clone",
-    "agent-browser": "agent_browser",
-    "semgrep": "semgrep",
-    "gitleaks": "gitleaks",
-    "trufflehog": "trufflehog",
-    "trivy": "trivy",
-    "bandit": "bandit",
-    "nmap": "nmap",
-}
+# Tool name patterns — order matters (first match wins)
+_TOOL_PATTERNS: list[tuple[str, str]] = [
+    # Dedicated security tools (highest priority)
+    (r'\bnmap\b', "nmap"),
+    (r'\bnuclei\b', "nuclei"),
+    (r'\bsqlmap\b', "sqlmap"),
+    (r'\bffuf\b', "ffuf"),
+    (r'\bsubfinder\b', "subfinder"),
+    (r'\bhttpx\b', "httpx"),
+    (r'\bkatana\b', "katana"),
+    (r'\bgospider\b', "gospider"),
+    (r'\bnaabu\b', "naabu"),
+    (r'\bdirsearch\b', "dirsearch"),
+    (r'\barjun\b', "arjun"),
+    (r'\bwafw00f\b', "wafw00f"),
+    (r'\bhydra\b', "hydra"),
+    (r'\bcrackmapexec\b', "crackmapexec"),
+    (r'\benum4linux\b', "enum4linux"),
+    (r'\bresponder\b', "responder"),
+    (r'\bkerbrute\b', "kerbrute"),
+    (r'\bimpacket-', "impacket"),
+    (r'\bsemgrep\b', "semgrep"),
+    (r'\bgitleaks\b', "gitleaks"),
+    (r'\btrufflehog\b', "trufflehog"),
+    (r'\btrivy\b', "trivy"),
+    (r'\bbandit\b', "bandit"),
+    # HTTP tools
+    (r'\bcurl\b', "curl"),
+    (r'\bwget\b', "wget"),
+    # Browser
+    (r'\bagent-browser\b', "agent_browser"),
+    # Package management
+    (r'\bpip\s+install\b', "pip_install"),
+    (r'\bapt-get\b', "apt"),
+    (r'\bgit\s+clone\b', "git_clone"),
+    # System commands (lower priority)
+    (r'\bpython3?\b', "python"),
+    (r'\bls\b', "shell"),
+    (r'\bcd\b', "shell"),
+    (r'\bcat\b', "shell"),
+    (r'\becho\b', "shell"),
+    (r'\bmkdir\b', "shell"),
+    (r'\bgrep\b', "shell"),
+    (r'\bfind\b', "shell"),
+    (r'\bhead\b', "shell"),
+    (r'\btail\b', "shell"),
+    (r'\bwc\b', "shell"),
+    (r'\bnslookup\b', "shell"),
+    (r'\bpwd\b', "shell"),
+    (r'\bhostname\b', "shell"),
+    (r'\btimeout\b', "shell"),
+]
 
-# Counter per tool type to avoid overwriting
-_counters: dict[str, int] = {}
+
+def _strip_comment_prefix(command: str) -> str:
+    """Remove leading comment lines from a command."""
+    lines = command.strip().splitlines()
+    # Find first non-comment line
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return stripped
+    return command.strip()
 
 
 def _detect_tool_name(command: str) -> str:
     """Detect which tool is being used from the command string."""
-    cmd_lower = command.lower().strip()
+    # Strip comments and get the actual command
+    cleaned = _strip_comment_prefix(command)
+    # Also handle "cd /path && command" patterns
+    if "&&" in cleaned:
+        # Get the last command after &&
+        parts = cleaned.split("&&")
+        cleaned = parts[-1].strip()
+    # Handle "timeout N command" prefix
+    cleaned = re.sub(r'^timeout\s+\d+\s+', '', cleaned)
+    # Handle "echo 'y' | command" pipe
+    if "|" in cleaned:
+        parts = cleaned.split("|")
+        cleaned = parts[-1].strip()
+    
+    cleaned_lower = cleaned.lower()
 
-    for prefix, tool_name in _COMMAND_MAP.items():
-        if cmd_lower.startswith(prefix):
+    for pattern, tool_name in _TOOL_PATTERNS:
+        if re.search(pattern, cleaned_lower):
             return tool_name
 
-    # Check for pip install
-    if "pip install" in cmd_lower or "pip3 install" in cmd_lower:
-        return "pip_install"
-
-    # Check for python scripts
-    if cmd_lower.startswith("python") or cmd_lower.startswith("python3"):
-        return "python"
-
     return "other"
+
+
+# Counter per tool type to avoid overwriting
+_counters: dict[str, int] = {}
 
 
 def _get_next_filename(tool_logs_dir: Path, tool_name: str) -> str:
