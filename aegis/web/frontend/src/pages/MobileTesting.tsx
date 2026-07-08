@@ -251,7 +251,7 @@ export default function MobileTesting() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-y-auto">
         {view === 'upload' ? (
           <UploadView
             onUpload={async (app) => {
