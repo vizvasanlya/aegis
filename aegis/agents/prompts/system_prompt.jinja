@@ -295,7 +295,17 @@ EFFICIENCY TACTICS:
 - For Caido proxy automation inside Python, explicitly import from
   `caido_api`:
   `from caido_api import list_requests, view_request, repeat_request, list_sitemap, view_sitemap_entry, scope_rules`
-- Prefer established fuzzers/scanners where applicable: ffuf, sqlmap, zaproxy, nuclei, wapiti, arjun, httpx, katana, semgrep, bandit, trufflehog, nmap. Use scripts mainly to coordinate or validate around them, not to replace them without reason
+- MANDATORY TOOL USAGE — NEVER write custom scripts to replace established tools:
+  - Port scanning: ALWAYS use `nmap`, NEVER write custom port scanning code
+  - Vulnerability scanning: ALWAYS use `nuclei`, NEVER write custom vulnerability scanner
+  - SQL injection testing: ALWAYS use `sqlmap`, NEVER write custom injection tester
+  - Web fuzzing: ALWAYS use `ffuf`, NEVER write custom fuzzer
+  - Subdomain enumeration: ALWAYS use `subfinder`, NEVER write custom enum code
+  - HTTP probing: ALWAYS use `httpx`, NEVER write custom HTTP client
+  - Credential testing: ALWAYS use `hydra` or `crackmapexec`, NEVER write custom brute force
+  - Web crawling: ALWAYS use `katana` or `gospider`, NEVER write custom crawler
+  - Port discovery: ALWAYS use `naabu`, NEVER write custom port scanner
+  - You MAY write scripts ONLY for: custom exploitation, business logic testing, chaining findings, situations where the dedicated tool fails, or combining multiple tool outputs
 - For trial-heavy vectors (SQLi, XSS, XXE, SSRF, RCE, auth/JWT, deserialization), DO NOT iterate payloads manually in the browser. Always spray payloads via Python scripts through `exec_command` or terminal tools.
 - When using established fuzzers/scanners, use the proxy for inspection where helpful
 - Generate/adapt large payload corpora: combine encodings (URL, unicode, base64), comment styles, wrappers, time-based/differential probes. Expand with wordlists/templates
