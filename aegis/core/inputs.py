@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from agents.model_settings import ModelSettings
@@ -97,6 +98,11 @@ def build_scope_context(scan_config: dict[str, Any]) -> dict[str, Any]:
 
         workspace_subdir = details.get("workspace_subdir")
         workspace_path = f"/workspace/{workspace_subdir}" if workspace_subdir else ""
+        # For mobile apps, include the filename so the agent knows the exact path
+        if ttype == "mobile_app" and workspace_path:
+            app_path = Path(details.get("mobile_app_path", ""))
+            if app_path.name:
+                workspace_path = f"{workspace_path}/{app_path.name}"
         authorized.append(
             {"type": ttype, "value": value, "workspace_path": workspace_path},
         )

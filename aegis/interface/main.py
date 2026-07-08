@@ -772,25 +772,23 @@ def pull_docker_image() -> None:
     client = check_docker_connection()
 
     image = load_settings().runtime.image
-
     logger.info("Checking docker image: %s", image)
     console.print()
     console.print(f"[dim]Checking image[/] {image}")
 
-    with console.status("[bold cyan]Checking for updates...", spinner="dots") as status:
+    if image_exists(client, image):
+        logger.info("Docker image %s already exists locally", image)
+        console.print("[green]Docker image ready[/green]")
+        console.print()
+        return
+
+    with console.status("[bold cyan]Pulling image for the first time...", spinner="dots") as status:
         try:
-            # Always pull - Docker only downloads changed layers
-            # This ensures we get the latest version automatically
             layers_info: dict[str, str] = {}
             last_update = ""
 
             for line in client.api.pull(image, stream=True, decode=True):
                 last_update = process_pull_line(line, layers_info, status, last_update)
-
-            if not layers_info:
-                console.print("[dim]Image is up to date[/dim]")
-            else:
-                console.print("[green]Image updated successfully[/green]")
 
         except DockerException as e:
             logger.exception("Failed to pull docker image %s", image)
@@ -813,7 +811,7 @@ def pull_docker_image() -> None:
 
     logger.info("Docker image %s ready", image)
     success_text = Text()
-    success_text.append("Docker image ready", style="#22c55e")
+    success_text.append("Docker image pulled successfully", style="#22c55e")
     console.print(success_text)
     console.print()
 

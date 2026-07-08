@@ -114,6 +114,20 @@ def _atomic_write_text(path: Path, payload: str) -> None:
     tmp_path.replace(path)
 
 
+def _unescape_report_text(text: str) -> str:
+    """Convert literal escape sequences (\\n, \\t, \\\\n) to real characters.
+
+    LLMs often emit literal backslash-n inside JSON strings, which appear
+    as ``\\n`` in the rendered markdown instead of actual line breaks.
+    This normalizes them before the markdown writer sees the text.
+    """
+    if not text:
+        return text
+    # Order matters: \\n → newline BEFORE \\n (which is the literal two-char
+    # sequence backslash + n, produced when JSON encoding double-escapes).
+    return text.replace("\\n", "\n").replace("\\t", "\t").replace("\\\\n", "\n")
+
+
 def _detect_poc_language(code: str) -> str:
     """Detect the language of a PoC code block for syntax highlighting."""
     stripped = code.strip()
@@ -154,23 +168,23 @@ def render_vulnerability_md(report: dict[str, Any]) -> str:  # noqa: PLR0912, PL
 
     lines.append("")
     lines.append("## Description\n")
-    lines.append(report.get("description") or "No description provided.")
+    lines.append(_unescape_report_text(report.get("description") or "No description provided."))
     lines.append("")
 
     if report.get("impact"):
         lines.append("## Impact\n")
-        lines.append(str(report["impact"]))
+        lines.append(_unescape_report_text(str(report["impact"])))
         lines.append("")
 
     if report.get("technical_analysis"):
         lines.append("## Technical Analysis\n")
-        lines.append(str(report["technical_analysis"]))
+        lines.append(_unescape_report_text(str(report["technical_analysis"])))
         lines.append("")
 
     if report.get("poc_description") or report.get("poc_script_code"):
         lines.append("## Proof of Concept\n")
         if report.get("poc_description"):
-            lines.append(str(report["poc_description"]))
+            lines.append(_unescape_report_text(str(report["poc_description"])))
             lines.append("")
         if report.get("poc_script_code"):
             poc_code = str(report["poc_script_code"])
@@ -249,7 +263,7 @@ def render_vulnerability_md(report: dict[str, Any]) -> str:  # noqa: PLR0912, PL
 
     if report.get("remediation_steps"):
         lines.append("## Remediation\n")
-        lines.append(str(report["remediation_steps"]))
+        lines.append(_unescape_report_text(str(report["remediation_steps"])))
         lines.append("")
 
     return "\n".join(lines)

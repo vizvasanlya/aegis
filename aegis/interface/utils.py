@@ -1219,13 +1219,30 @@ def collect_local_sources(targets_info: list[dict[str, Any]]) -> list[dict[str, 
             )
 
         elif target_info["type"] == "mobile_app" and "mobile_app_path" in details:
-            local_sources.append(
-                {
-                    "source_path": details["mobile_app_path"],
-                    "workspace_subdir": workspace_subdir,
-                    "mount": False,
-                }
-            )
+            # LocalDir expects a DIRECTORY, not a file.
+            # Create a temp dir containing the APK/IPA so it gets copied into the sandbox.
+            import shutil
+            import tempfile
+            app_path = Path(details["mobile_app_path"])
+            if app_path.is_file():
+                tmp_dir = Path(tempfile.mkdtemp(prefix="aegis_mobile_"))
+                dest = tmp_dir / app_path.name
+                shutil.copy2(str(app_path), str(dest))
+                local_sources.append(
+                    {
+                        "source_path": str(tmp_dir),
+                        "workspace_subdir": workspace_subdir,
+                        "mount": False,
+                    }
+                )
+            else:
+                local_sources.append(
+                    {
+                        "source_path": details["mobile_app_path"],
+                        "workspace_subdir": workspace_subdir,
+                        "mount": False,
+                    }
+                )
 
     return local_sources
 

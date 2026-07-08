@@ -17,6 +17,15 @@ _BASE_CONFIG = SettingsConfigDict(
 )
 
 
+class ProviderSettings(BaseSettings):
+    """Per-provider API key and base URL configuration."""
+
+    model_config = _BASE_CONFIG
+
+    api_key: str | None = None
+    base_url: str | None = None
+
+
 class LlmSettings(BaseSettings):
     model_config = _BASE_CONFIG
 
@@ -37,6 +46,34 @@ class LlmSettings(BaseSettings):
     )
     reasoning_effort: ReasoningEffort = Field(default="high", alias="AEGIS_REASONING_EFFORT")
     timeout: int = Field(default=300, alias="LLM_TIMEOUT")
+
+    # Per-provider settings
+    openai: ProviderSettings = Field(default_factory=ProviderSettings)
+    anthropic: ProviderSettings = Field(default_factory=ProviderSettings)
+    gemini: ProviderSettings = Field(default_factory=ProviderSettings)
+    deepseek: ProviderSettings = Field(default_factory=ProviderSettings)
+    ollama: ProviderSettings = Field(default_factory=ProviderSettings)
+    vertex_ai: ProviderSettings = Field(default_factory=ProviderSettings)
+
+    def model_post_init(self, __context: object) -> None:
+        import os
+
+        # Populate per-provider settings from env vars
+        # Check AEGIS_<PROVIDER>_API_KEY first, then fall back to standard env vars
+        _PROVIDER_ENV_MAP: dict[str, tuple[str, str, str, str]] = {
+            "openai": ("AEGIS_OPENAI_API_KEY", "OPENAI_API_KEY", "AEGIS_OPENAI_BASE_URL", "OPENAI_BASE_URL"),
+            "anthropic": ("AEGIS_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY", "AEGIS_ANTHROPIC_BASE_URL", "ANTHROPIC_BASE_URL"),
+            "gemini": ("AEGIS_GEMINI_API_KEY", "GEMINI_API_KEY", "AEGIS_GEMINI_BASE_URL", "GEMINI_BASE_URL"),
+            "deepseek": ("AEGIS_DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY", "AEGIS_DEEPSEEK_BASE_URL", "DEEPSEEK_BASE_URL"),
+            "ollama": ("AEGIS_OLLAMA_API_KEY", "OLLAMA_API_KEY", "AEGIS_OLLAMA_BASE_URL", "OLLAMA_BASE_URL"),
+            "vertex_ai": ("AEGIS_VERTEX_AI_API_KEY", "GOOGLE_API_KEY", "AEGIS_VERTEX_AI_BASE_URL", "VERTEX_AI_BASE_URL"),
+        }
+        for provider_name, (aegis_key, std_key, aegis_url, std_url) in _PROVIDER_ENV_MAP.items():
+            provider = getattr(self, provider_name)
+            if not provider.api_key:
+                provider.api_key = os.environ.get(aegis_key) or os.environ.get(std_key)
+            if not provider.base_url:
+                provider.base_url = os.environ.get(aegis_url) or os.environ.get(std_url)
 
 
 class RuntimeSettings(BaseSettings):

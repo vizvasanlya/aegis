@@ -1,14 +1,18 @@
 import { Link, useLocation } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  Shield, 
-  Github, 
+import {
+  LayoutDashboard,
+  Shield,
+  Github,
   Plug,
   BookOpen,
   Settings,
   Terminal,
   Scan,
-  Key
+  Key,
+  Plus,
+  Code,
+  Smartphone,
+  Network,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -20,10 +24,18 @@ const navSections = [
     ],
   },
   {
+    title: 'Launch',
+    items: [
+      { path: '/new-scan', label: 'New Scan', icon: Plus },
+    ],
+  },
+  {
     title: 'Security',
     items: [
       { path: '/pentests', label: 'Pentests', icon: Scan },
       { path: '/vulnerabilities', label: 'Vulnerabilities', icon: Shield },
+      { path: '/api-testing', label: 'API Testing', icon: Code },
+      { path: '/mobile-testing', label: 'Mobile Testing', icon: Smartphone },
       { path: '/credentials', label: 'Credentials', icon: Key },
       { path: '/logs', label: 'Logs', icon: Terminal },
     ],
@@ -72,8 +84,10 @@ export default function Sidebar() {
             <ul className="space-y-1">
               {section.items.map((item) => {
                 const Icon = item.icon
-                const isActive = location.pathname === item.path || 
-                  (item.path === '/pentests' && location.pathname.startsWith('/pentest'))
+                const isActive = location.pathname === item.path ||
+                  (item.path === '/pentests' && location.pathname.startsWith('/pentest')) ||
+                  (item.path === '/api-testing' && location.pathname.startsWith('/api-testing')) ||
+                  (item.path === '/mobile-testing' && location.pathname.startsWith('/mobile-testing'))
                 return (
                   <li key={item.path}>
                     <Link

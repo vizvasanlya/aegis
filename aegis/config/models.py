@@ -19,6 +19,13 @@ if TYPE_CHECKING:
 
     from aegis.config.settings import Settings
 
+# Global settings reference for per-provider config lookup
+_SETTINGS: Settings | None = None
+
+
+def get_settings() -> Settings | None:
+    return _SETTINGS
+
 
 class AegisProvider(MultiProvider):
     """Route any non-OpenAI prefix through LiteLLM with the prefix preserved,
@@ -28,6 +35,17 @@ class AegisProvider(MultiProvider):
 
     _OPENCODE_BASE_URL = "https://opencode.ai/zen/v1"
 
+    # Provider prefix -> settings attribute name
+    _PROVIDER_MAP: dict[str, str] = {
+        "openai": "openai",
+        "anthropic": "anthropic",
+        "gemini": "gemini",
+        "deepseek": "deepseek",
+        "ollama": "ollama",
+        "vertex_ai": "vertex_ai",
+        "opencode": "openai",  # opencode uses openai-compatible API
+    }
+
     def _resolve_prefixed_model(
         self,
         *,
@@ -35,18 +53,71 @@ class AegisProvider(MultiProvider):
         prefix: str,
         stripped_model_name: str | None,
     ) -> tuple[ModelProvider, str | None]:
-        if prefix in {"openai", "litellm", "any-llm"}:
+        if prefix in {"litellm", "any-llm"}:
             return super()._resolve_prefixed_model(
                 original_model_name=original_model_name,
                 prefix=prefix,
                 stripped_model_name=stripped_model_name,
             )
+
+        # For openai prefix, use default behavior
+        if prefix == "openai":
+            return super()._resolve_prefixed_model(
+                original_model_name=original_model_name,
+                prefix=prefix,
+                stripped_model_name=stripped_model_name,
+            )
+
+        # Apply per-provider config
+        settings = get_settings()
+        if settings and prefix in self._PROVIDER_MAP:
+            provider_attr = self._PROVIDER_MAP[prefix]
+            provider_settings = getattr(settings.llm, provider_attr, None)
+            if provider_settings and provider_settings.api_key:
+                _set_provider_env(prefix, provider_settings.api_key, provider_settings.base_url)
+
+        # Route to litellm provider
         if prefix == "ollama" and stripped_model_name:
             return self._get_fallback_provider("litellm"), f"ollama_chat/{stripped_model_name}"
         if prefix == "opencode" and stripped_model_name:
             _configure_opencode_zen(stripped_model_name)
             return self._get_fallback_provider("litellm"), f"openai/{stripped_model_name}"
         return self._get_fallback_provider("litellm"), original_model_name
+
+
+def _configure_opencode_zen(_model_name: str) -> None:
+    """Configure LiteLLM for OpenCode Zen API."""
+    import litellm
+
+    base_url = AegisProvider._OPENCODE_BASE_URL
+    os.environ["OPENAI_BASE_URL"] = base_url
+    litellm.api_base = base_url  # type: ignore[attr-defined]
+    set_default_openai_api("chat_completions")
+
+    # Use the OPENCODE_API_KEY if set, otherwise use the generic LLM_API_KEY
+    zen_key = os.environ.get("OPENCODE_API_KEY") or os.environ.get("LLM_API_KEY")
+    if zen_key:
+        os.environ["OPENAI_API_KEY"] = zen_key
+        set_default_openai_key(zen_key, use_for_tracing=False)
+
+
+def _set_provider_env(provider: str, api_key: str, base_url: str | None = None) -> None:
+    """Set environment variables for a specific provider."""
+    _ENV_MAP: dict[str, dict[str, str]] = {
+        "gemini": {"key": "GEMINI_API_KEY", "extra_key": "GOOGLE_API_KEY"},
+        "vertex_ai": {"key": "GOOGLE_API_KEY"},
+        "anthropic": {"key": "ANTHROPIC_API_KEY"},
+        "deepseek": {"key": "DEEPSEEK_API_KEY"},
+        "ollama": {"key": "OLLAMA_API_KEY"},
+    }
+
+    if provider in _ENV_MAP:
+        env_config = _ENV_MAP[provider]
+        os.environ.setdefault(env_config["key"], api_key)
+        if "extra_key" in env_config:
+            os.environ.setdefault(env_config["extra_key"], api_key)
+        if base_url and "base_url_key" in env_config:
+            os.environ.setdefault(env_config["base_url_key"], base_url)
 
 
 DEFAULT_MODEL_RETRY = ModelRetrySettings(
@@ -67,57 +138,36 @@ DEFAULT_MODEL_RETRY = ModelRetrySettings(
 
 def configure_sdk_model_defaults(settings: Settings) -> None:
     """Apply Aegis config to SDK-native defaults."""
+    global _SETTINGS
+    _SETTINGS = settings
+
     llm = settings.llm
     set_tracing_disabled(True)
     _configure_litellm_compatibility()
-    if llm.api_key:
+
+    # Configure OpenAI provider
+    if llm.openai.api_key:
+        set_default_openai_key(llm.openai.api_key, use_for_tracing=False)
+        os.environ.setdefault("OPENAI_API_KEY", llm.openai.api_key)
+    elif llm.api_key:
         set_default_openai_key(llm.api_key, use_for_tracing=False)
-        _configure_litellm_default("api_key", llm.api_key)
-        _mirror_api_key_to_provider_env(llm.model, llm.api_key)
-    if llm.api_base:
+        os.environ.setdefault("OPENAI_API_KEY", llm.api_key)
+
+    # Configure OpenAI base URL (only if explicitly set)
+    if llm.openai.base_url:
+        os.environ["OPENAI_BASE_URL"] = llm.openai.base_url
+        set_default_openai_api("chat_completions")
+    elif llm.api_base:
         os.environ["OPENAI_BASE_URL"] = llm.api_base
-        _configure_litellm_default("api_base", llm.api_base)
         set_default_openai_api("chat_completions")
     else:
         set_default_openai_api("responses")
 
-
-def _mirror_api_key_to_provider_env(model_name: str | None, api_key: str) -> None:
-    if not model_name:
-        return
-    import litellm
-
-    name = model_name.strip()
-    for prefix in ("litellm/", "any-llm/"):
-        if name.lower().startswith(prefix):
-            name = name[len(prefix) :]
-            break
-    try:
-        report = litellm.validate_environment(model=name.lower())
-    except Exception:  # noqa: BLE001
-        return
-    for env_key in report.get("missing_keys") or []:
-        if env_key.endswith("_API_KEY"):
-            os.environ.setdefault(env_key, api_key)
-
-
-def _configure_opencode_zen(_model_name: str) -> None:
-    """Auto-configure LiteLLM for OpenCode Zen when the ``opencode/`` prefix is used.
-
-    Sets the base URL to ``https://opencode.ai/zen/v1`` and routes through
-    the OpenAI chat-completions API, which is what Zen exposes.
-    """
-    import litellm
-
-    base_url = AegisProvider._OPENCODE_BASE_URL
-    os.environ["OPENAI_BASE_URL"] = base_url
-    litellm.api_base = base_url  # type: ignore[attr-defined]
-    set_default_openai_api("chat_completions")
-    # Mirror the Zen API key into the env if the user set OPENCODE_API_KEY.
-    zen_key = os.environ.get("OPENCODE_API_KEY")
-    if zen_key:
-        os.environ.setdefault("OPENAI_API_KEY", zen_key)
-        set_default_openai_key(zen_key, use_for_tracing=False)
+    # Set provider-specific env vars from per-provider config
+    for provider_attr in ("gemini", "vertex_ai", "anthropic", "deepseek", "ollama"):
+        provider_settings = getattr(llm, provider_attr, None)
+        if provider_settings and provider_settings.api_key:
+            _set_provider_env(provider_attr, provider_settings.api_key, provider_settings.base_url)
 
 
 def _configure_litellm_compatibility() -> None:
