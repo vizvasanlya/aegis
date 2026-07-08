@@ -479,29 +479,35 @@ async def download_report(scan_id: str):
     for i, v in enumerate(vulns, 1):
         sev = v.get("severity", "unknown")
         color = sev_color(sev)
-        poc = v.get("poc_script_code", "") or v.get("poc", {}).get("script_code", "") or ""
-        poc_desc = v.get("poc", {}).get("description", "") or ""
-        remediation = v.get("remediation_steps", "") or ""
-        endpoint = v.get("endpoint", "") or ""
+        poc_raw = v.get("poc_script_code") or (v.get("poc", {}) or {}).get("script_code") or ""
+        poc = str(poc_raw)[:2000] if poc_raw else ""
+        poc_desc_raw = (v.get("poc", {}) or {}).get("description") or ""
+        poc_desc = str(poc_desc_raw) if poc_desc_raw else ""
+        remediation_raw = v.get("remediation_steps") or ""
+        remediation = str(remediation_raw) if remediation_raw else ""
+        endpoint_raw = v.get("endpoint") or ""
+        endpoint = str(endpoint_raw) if endpoint_raw else ""
         http_req = ""
         http_resp = ""
         if v.get("http_requests"):
             for req in v["http_requests"][:1]:
-                http_req = req.get("request", "")[:500]
-                http_resp = req.get("response", "")[:500]
+                raw_req = req.get("request", "")
+                raw_resp = req.get("response", "")
+                http_req = str(raw_req)[:500] if raw_req else ""
+                http_resp = str(raw_resp)[:500] if raw_resp else ""
 
         vuln_rows += f"""
         <div class="vuln-card" style="border-left: 4px solid {color};">
           <div class="vuln-header">
             <span class="vuln-num">#{i}</span>
-            <span class="vuln-title">{v.get('title', 'Untitled')}</span>
+            <span class="vuln-title">{str(v.get('title', 'Untitled'))}</span>
             <span class="sev-badge" style="background: {color}20; color: {color};">{sev.upper()}</span>
-            {f'<span class="cvss">CVSS {v.get("cvss", "")}</span>' if v.get('cvss') else ''}
+            {f'<span class="cvss">CVSS {str(v.get("cvss", ""))}</span>' if v.get('cvss') else ''}
           </div>
-          {f'<div class="endpoint"><strong>Endpoint:</strong> <code>{endpoint}</code></div>' if endpoint else ''}
-          <div class="vuln-desc">{v.get('description', '')}</div>
+          {f'<div class="endpoint"><strong>Endpoint:</strong> <code>{str(endpoint)}</code></div>' if endpoint else ''}
+          <div class="vuln-desc">{str(v.get('description', ''))}</div>
           {f'<div class="vuln-section"><strong>PoC Description:</strong><p>{poc_desc}</p></div>' if poc_desc else ''}
-          {f'<div class="vuln-section"><strong>PoC Script:</strong><pre>{poc[:2000]}</pre></div>' if poc else ''}
+          {f'<div class="vuln-section"><strong>PoC Script:</strong><pre>{poc}</pre></div>' if poc else ''}
           {f'<div class="vuln-section"><strong>HTTP Request:</strong><pre>{http_req}</pre></div>' if http_req else ''}
           {f'<div class="vuln-section"><strong>HTTP Response:</strong><pre>{http_resp}</pre></div>' if http_resp else ''}
           {f'<div class="vuln-section"><strong>Remediation:</strong><p>{remediation}</p></div>' if remediation else ''}
