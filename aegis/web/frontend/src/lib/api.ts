@@ -94,6 +94,9 @@ export const api = {
   // Logs
   getLogs: (scanId: string, lines?: number) => fetchApi<any>(`/scans/${scanId}/logs?lines=${lines || 100}`),
 
+  // Report
+  getReportUrl: (scanId: string) => `${API_BASE}/scans/${scanId}/report`,
+
   // Stats
   getStats: () => fetchApi<any>('/stats'),
 

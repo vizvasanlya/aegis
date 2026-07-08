@@ -9,10 +9,8 @@ import {
   Terminal,
   Scan,
   Key,
-  Plus,
   Code,
   Smartphone,
-  Network,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -21,12 +19,6 @@ const navSections = [
     title: 'Overview',
     items: [
       { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-    ],
-  },
-  {
-    title: 'Launch',
-    items: [
-      { path: '/new-scan', label: 'New Scan', icon: Plus },
     ],
   },
   {

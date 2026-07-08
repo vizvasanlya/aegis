@@ -440,11 +440,120 @@ async def get_vulnerabilities(scan_id: str) -> list[dict]:
     """Get all vulnerabilities for a scan."""
     run_dir = Path("aegis_runs") / scan_id
     vuln_file = run_dir / "vulnerabilities.json"
-    
+
     if vuln_file.exists():
         return json.loads(vuln_file.read_text())
-    
+
     return []
+
+
+@app.get("/api/scans/{scan_id}/report")
+async def download_report(scan_id: str):
+    """Generate and download a pentest report as HTML (printable to PDF)."""
+    run_dir = Path("aegis_runs") / scan_id
+    vuln_file = run_dir / "vulnerabilities.json"
+    run_json = run_dir / "run.json"
+
+    vulns = []
+    if vuln_file.exists():
+        vulns = json.loads(vuln_file.read_text())
+
+    scan_info = {}
+    if run_json.exists():
+        scan_info = json.loads(run_json.read_text())
+
+    target = scan_info.get("targets_info", [{}])[0].get("original", scan_id) if scan_info.get("targets_info") else scan_id
+    scan_mode = scan_info.get("scan_mode", "unknown")
+    start_time = scan_info.get("start_time", "")
+
+    severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for v in vulns:
+        sev = v.get("severity", "").lower()
+        if sev in severity_counts:
+            severity_counts[sev] += 1
+
+    def sev_color(sev: str) -> str:
+        return {"critical": "#ef4444", "high": "#f97316", "medium": "#eab308", "low": "#3b82f6"}.get(sev, "#6b7280")
+
+    vuln_rows = ""
+    for i, v in enumerate(vulns, 1):
+        sev = v.get("severity", "unknown")
+        color = sev_color(sev)
+        poc = v.get("poc_script_code", "") or v.get("poc", {}).get("script_code", "") or ""
+        poc_desc = v.get("poc", {}).get("description", "") or ""
+        remediation = v.get("remediation_steps", "") or ""
+        endpoint = v.get("endpoint", "") or ""
+        http_req = ""
+        http_resp = ""
+        if v.get("http_requests"):
+            for req in v["http_requests"][:1]:
+                http_req = req.get("request", "")[:500]
+                http_resp = req.get("response", "")[:500]
+
+        vuln_rows += f"""
+        <div class="vuln-card" style="border-left: 4px solid {color};">
+          <div class="vuln-header">
+            <span class="vuln-num">#{i}</span>
+            <span class="vuln-title">{v.get('title', 'Untitled')}</span>
+            <span class="sev-badge" style="background: {color}20; color: {color};">{sev.upper()}</span>
+            {f'<span class="cvss">CVSS {v.get("cvss", "")}</span>' if v.get('cvss') else ''}
+          </div>
+          {f'<div class="endpoint"><strong>Endpoint:</strong> <code>{endpoint}</code></div>' if endpoint else ''}
+          <div class="vuln-desc">{v.get('description', '')}</div>
+          {f'<div class="vuln-section"><strong>PoC Description:</strong><p>{poc_desc}</p></div>' if poc_desc else ''}
+          {f'<div class="vuln-section"><strong>PoC Script:</strong><pre>{poc[:2000]}</pre></div>' if poc else ''}
+          {f'<div class="vuln-section"><strong>HTTP Request:</strong><pre>{http_req}</pre></div>' if http_req else ''}
+          {f'<div class="vuln-section"><strong>HTTP Response:</strong><pre>{http_resp}</pre></div>' if http_resp else ''}
+          {f'<div class="vuln-section"><strong>Remediation:</strong><p>{remediation}</p></div>' if remediation else ''}
+        </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Pentest Report — {target}</title>
+<style>
+  @media print {{ body {{ font-size: 11pt; }} .no-print {{ display: none; }} }}
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2937; padding: 40px; max-width: 900px; margin: 0 auto; }}
+  h1 {{ font-size: 24px; margin-bottom: 4px; }}
+  .subtitle {{ color: #6b7280; margin-bottom: 24px; }}
+  .summary {{ display: flex; gap: 16px; margin-bottom: 24px; }}
+  .stat {{ flex: 1; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; }}
+  .stat .num {{ font-size: 28px; font-weight: bold; }}
+  .stat .label {{ font-size: 12px; color: #6b7280; }}
+  .vuln-card {{ background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; page-break-inside: avoid; }}
+  .vuln-header {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }}
+  .vuln-num {{ font-weight: bold; color: #6b7280; }}
+  .vuln-title {{ font-weight: 600; font-size: 15px; flex: 1; }}
+  .sev-badge {{ padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }}
+  .cvss {{ font-size: 12px; color: #6b7280; }}
+  .endpoint {{ font-size: 13px; margin-bottom: 8px; }}
+  .endpoint code {{ background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-size: 12px; }}
+  .vuln-desc {{ font-size: 14px; color: #374151; margin-bottom: 8px; }}
+  .vuln-section {{ margin-top: 8px; font-size: 13px; }}
+  .vuln-section pre {{ background: #1f2937; color: #e5e7eb; padding: 12px; border-radius: 6px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin-top: 4px; }}
+  .footer {{ margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; text-align: center; }}
+  .print-btn {{ position: fixed; top: 20px; right: 20px; background: #0891b2; color: white; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }}
+  .print-btn:hover {{ background: #0e7490; }}
+</style></head><body>
+<button class="print-btn no-print" onclick="window.print()">Download PDF</button>
+<h1>Aegis Penetration Test Report</h1>
+<p class="subtitle">Target: {target} | Mode: {scan_mode} | Date: {start_time[:10] if start_time else 'N/A'}</p>
+
+<div class="summary">
+  <div class="stat"><div class="num" style="color:#111827">{len(vulns)}</div><div class="label">Total Findings</div></div>
+  <div class="stat"><div class="num" style="color:#ef4444">{severity_counts['critical']}</div><div class="label">Critical</div></div>
+  <div class="stat"><div class="num" style="color:#f97316">{severity_counts['high']}</div><div class="label">High</div></div>
+  <div class="stat"><div class="num" style="color:#eab308">{severity_counts['medium']}</div><div class="label">Medium</div></div>
+  <div class="stat"><div class="num" style="color:#3b82f6">{severity_counts['low']}</div><div class="label">Low</div></div>
+</div>
+
+<h2 style="font-size:18px; margin-bottom:16px;">Findings</h2>
+{vuln_rows if vuln_rows else '<p style="color:#6b7280; text-align:center; padding:40px;">No vulnerabilities found</p>'}
+
+<div class="footer">Generated by Aegis Security Platform | {len(vulns)} findings</div>
+</body></html>"""
+
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
 
 
 @app.get("/api/vulnerabilities")
