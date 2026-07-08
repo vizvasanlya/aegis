@@ -64,6 +64,11 @@ _TOOL_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
+def _strip_ansi_codes(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    return re.sub(r'\[[\d;]*m', '', text)
+
+
 def _strip_comment_prefix(command: str) -> str:
     """Remove leading comment lines from a command."""
     lines = command.strip().splitlines()
@@ -77,11 +82,12 @@ def _strip_comment_prefix(command: str) -> str:
 
 def _detect_tool_name(command: str) -> str:
     """Detect which tool is being used from the command string."""
+    # Strip ANSI escape codes first
+    cleaned = _strip_ansi_codes(command)
     # Strip comments and get the actual command
-    cleaned = _strip_comment_prefix(command)
-    # Also handle "cd /path && command" patterns
+    cleaned = _strip_comment_prefix(cleaned)
+    # Handle "cd /path && command" patterns
     if "&&" in cleaned:
-        # Get the last command after &&
         parts = cleaned.split("&&")
         cleaned = parts[-1].strip()
     # Handle "timeout N command" prefix
