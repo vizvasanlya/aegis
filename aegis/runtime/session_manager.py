@@ -117,16 +117,20 @@ async def create_or_reuse(
     host_caido_url = f"http://{caido_endpoint.host}:{caido_endpoint.port}"
     logger.debug("Caido host endpoint resolved: %s", host_caido_url)
 
-    caido_client = await bootstrap_caido(
-        session,
-        host_url=host_caido_url,
-        container_url=container_caido_url,
-    )
+    try:
+        caido_client = await bootstrap_caido(
+            session,
+            host_url=host_caido_url,
+            container_url=container_caido_url,
+        )
+    except Exception as exc:
+        logger.warning("Caido bootstrap failed (%s) — continuing without proxy", exc)
+        caido_client = None
 
     bundle = {
         "client": client,
         "session": session,
-        "caido_client": caido_client,
+        "caido_client": caido_client,  # None if Caido bootstrap failed
     }
     _SESSION_CACHE[scan_id] = bundle
     logger.info("Sandbox session for scan %s ready and cached", scan_id)
