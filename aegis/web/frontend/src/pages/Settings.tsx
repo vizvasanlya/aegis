@@ -6,7 +6,6 @@ import {
   Key,
   Shield,
   ExternalLink,
-  AlertCircle,
   Eye,
   EyeOff,
   ChevronDown,

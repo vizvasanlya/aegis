@@ -7,20 +7,13 @@ import {
   Trash2,
   Play,
   Loader2,
-  Check,
-  AlertCircle,
   Search,
   Clock,
   ChevronRight,
   Globe,
   FileCode2,
-  Shield,
-  Eye,
-  Download,
-  MoreVertical,
   X,
   Scan,
-  AlertTriangle,
   CheckCircle,
   XCircle,
   Package,
@@ -28,9 +21,7 @@ import {
   Key,
   Fingerprint,
   Server,
-  Code,
   Bug,
-  BarChart3,
   RefreshCw,
 } from 'lucide-react'
 import { api, formatDate, formatDateTime } from '../lib/api'
@@ -726,13 +717,11 @@ function DetailView({
   const [scanning, setScanning] = useState(false)
   const [scanMode, setScanMode] = useState('standard')
   const [instruction, setInstruction] = useState('')
+  const [appData, setAppData] = useState(app)
 
   useEffect(() => {
     loadScans()
-    // Refresh app data to get updated total_scans
-    api.getMobileApp(app.id).then((data) => {
-      Object.assign(app, data)
-    }).catch(() => {})
+    api.getMobileApp(app.id).then(setAppData).catch(() => {})
   }, [app.id])
 
   const loadScans = async () => {
@@ -749,13 +738,13 @@ function DetailView({
     setScanning(true)
     try {
       const result = await api.createMobileScan({
-        app_name: app.name,
-        platform: app.platform,
-        source: app.source,
-        app_url: app.app_url || app.file_path,
+        app_name: appData.name,
+        platform: appData.platform,
+        source: appData.source,
+        app_url: appData.app_url || appData.file_path,
         scan_mode: scanMode,
         instruction: instruction || undefined,
-        app_id: app.id,
+        app_id: appData.id,
       })
       setShowScanModal(false)
       onScan(result.scan_id)
@@ -783,8 +772,8 @@ function DetailView({
           )}
         </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">{app.name}</h1>
-          <p className="text-sm text-gray-400">{app.filename} — {formatFileSize(app.file_size)}</p>
+          <h1 className="text-2xl font-bold text-white">{appData.name}</h1>
+          <p className="text-sm text-gray-400">{appData.filename} — {formatFileSize(appData.file_size)}</p>
         </div>
         <button
           onClick={() => setShowScanModal(true)}
@@ -799,20 +788,20 @@ function DetailView({
       <div className="mb-6 grid grid-cols-4 gap-4">
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-xs text-gray-500">Platform</p>
-          <p className="mt-1 text-lg font-bold text-white capitalize">{app.platform}</p>
+          <p className="mt-1 text-lg font-bold text-white capitalize">{appData.platform}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-xs text-gray-500">Total Scans</p>
-          <p className="mt-1 text-lg font-bold text-white">{app.total_scans}</p>
+          <p className="mt-1 text-lg font-bold text-white">{appData.total_scans}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-xs text-gray-500">Vulnerabilities</p>
-          <p className="mt-1 text-lg font-bold text-orange-400">{app.vulnerabilities_found}</p>
+          <p className="mt-1 text-lg font-bold text-orange-400">{appData.vulnerabilities_found}</p>
         </div>
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-xs text-gray-500">Last Scanned</p>
           <p className="mt-1 text-sm font-medium text-white">
-            {formatDate(app.last_scanned)}
+            {formatDate(appData.last_scanned)}
           </p>
         </div>
       </div>
