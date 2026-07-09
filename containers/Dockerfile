@@ -108,8 +108,10 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     impacket-scripts \
     responder \
+    enum4linux-ng \
     && rm -rf /var/lib/apt/lists/*
 USER pentester
+RUN pipx install crackmapexec
 
 RUN set -eux; \
     TS_PARSER_DIR="/home/pentester/.tree-sitter/parsers"; \
