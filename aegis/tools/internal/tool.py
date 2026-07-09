@@ -49,6 +49,9 @@ async def run_internal_scan(
         discover_hosts, scan_ports, enumerate_services,
     )
     from aegis.tools.internal.credential_spray import spray_passwords
+    from aegis.tools.internal.lateral_movement import (
+        smb_exec, smb_shares, winrm_exec, ssh_exec, multi_service_spray,
+    )
 
     # Parse credentials
     creds = None
@@ -143,7 +146,28 @@ async def run_internal_scan(
                 "invalid": [r.host for r in spray_result if not r.success],
             }
 
-    # Step 4: Internal service enumeration
+    # Step 4: Lateral movement (if credentials available)
+    if focus in (None, "all", "lateral") and creds and "hosts" in results:
+        logger.info("Testing lateral movement paths")
+        hosts_to_test = [h["ip"] for h in results["hosts"][:10]]
+        if hosts_to_test:
+            lateral_result = await multi_service_spray(
+                hosts=hosts_to_test,
+                username=creds["username"],
+                password=creds["password"],
+            )
+            results["lateral_movement"] = {
+                "tested": len(lateral_result),
+                "accessible": [r for r in lateral_result if r["success"]],
+            }
+
+            # Get SMB shares on accessible hosts
+            for host_ip in [r["host"] for r in lateral_result if r["success"] and r["service"] == "smb"]:
+                shares = await smb_shares(host_ip, creds["username"], creds["password"])
+                if shares.get("shares"):
+                    results.setdefault("shares", {})[host_ip] = shares["shares"]
+
+    # Step 5: Internal service enumeration
     if focus in (None, "all", "services") and "services" in results:
         services = results["services"]
         internal_findings = []
@@ -177,6 +201,7 @@ async def run_internal_scan(
         "services_found": results.get("services", {}).get("total_hosts", 0),
         "ad_enumerated": "ad" in results,
         "credentials_tested": "credential_spray" in results,
+        "lateral_movement": "lateral_movement" in results,
         "findings": results.get("findings_count", 0),
     }
 
