@@ -31,8 +31,9 @@ import {
   Code,
   Bug,
   BarChart3,
+  RefreshCw,
 } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, formatDate, formatDateTime } from '../lib/api'
 
 // Custom icons for platforms (lucide-react doesn't ship Android/Apple)
 function Android({ className }: { className?: string }) {
@@ -728,6 +729,10 @@ function DetailView({
 
   useEffect(() => {
     loadScans()
+    // Refresh app data to get updated total_scans
+    api.getMobileApp(app.id).then((data) => {
+      Object.assign(app, data)
+    }).catch(() => {})
   }, [app.id])
 
   const loadScans = async () => {
@@ -807,7 +812,7 @@ function DetailView({
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-xs text-gray-500">Last Scanned</p>
           <p className="mt-1 text-sm font-medium text-white">
-            {app.last_scanned ? new Date(app.last_scanned).toLocaleDateString() : 'Never'}
+            {formatDate(app.last_scanned)}
           </p>
         </div>
       </div>
@@ -883,7 +888,7 @@ function DetailView({
                   <div>
                     <p className="text-sm font-medium text-white">{scan.id}</p>
                     <p className="text-xs text-gray-500">
-                      {scan.started_at ? new Date(scan.started_at).toLocaleString() : '-'}
+                      {formatDateTime(scan.started_at)}
                     </p>
                   </div>
                 </div>

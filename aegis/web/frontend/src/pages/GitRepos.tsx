@@ -9,7 +9,7 @@ import {
   ExternalLink,
   Loader2
 } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, formatDate } from '../lib/api'
 
 export default function GitRepos() {
   const [repos, setRepos] = useState<any[]>([])
@@ -119,7 +119,7 @@ export default function GitRepos() {
                 <div className="text-right">
                   <p className="text-xs text-gray-500">Last scan</p>
                   <p className="text-sm text-white">
-                    {repo.last_scan ? new Date(repo.last_scan).toLocaleDateString() : 'Never'}
+                    {formatDate(repo.last_scan)}
                   </p>
                 </div>
                 <div className="text-right">

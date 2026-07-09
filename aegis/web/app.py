@@ -65,7 +65,11 @@ class SettingsUpdate(BaseModel):
     model: Optional[str] = None
     api_key: Optional[str] = None
     api_base: Optional[str] = None
-    image: Optional[str] = None
+    scan_mode: Optional[str] = None
+    reasoning_effort: Optional[str] = None
+    timeout: Optional[int] = None
+    backend: Optional[str] = None
+    telemetry: Optional[bool] = None
 
 class GitRepoRequest(BaseModel):
     repo_url: str
@@ -366,6 +370,7 @@ async def list_scans() -> list[dict]:
             "status": info["status"],
             "started_at": info["started_at"],
             "scan_mode": info["scan_mode"],
+            "type": info.get("type", "unknown"),
         })
     
     # Add historical scans from aegis_runs/
@@ -381,12 +386,32 @@ async def list_scans() -> list[dict]:
             if run_json.exists():
                 try:
                     data = json.loads(run_json.read_text())
+                    # Infer type from targets_info
+                    scan_type = data.get("scan_type", "unknown")
+                    if scan_type == "unknown":
+                        for t in data.get("targets_info", []):
+                            ttype = t.get("type", "")
+                            if ttype == "mobile_app":
+                                scan_type = "mobile"
+                                break
+                            elif ttype == "git":
+                                scan_type = "git"
+                                break
+                            elif ttype == "api_endpoint":
+                                scan_type = "api"
+                                break
+                            elif ttype == "internal_network":
+                                scan_type = "internal"
+                                break
+                        if scan_type == "unknown":
+                            scan_type = "webapp"
                     scans.append({
                         "id": run_dir.name,
                         "target": data.get("targets_info", [{}])[0].get("original", "Unknown"),
                         "status": data.get("status", "unknown"),
                         "started_at": data.get("start_time"),
                         "scan_mode": data.get("scan_mode", "unknown"),
+                        "type": scan_type,
                     })
                 except:
                     pass
@@ -868,6 +893,15 @@ async def create_mobile_scan(request: MobileScanRequest) -> dict:
                 if latest_run:
                     active_scans[scan_id]["status"] = "completed"
                     active_scans[scan_id]["actual_run_id"] = latest_run.name
+                    # Write app_id/app_name into run.json so list_mobile_app_scans can match historical runs
+                    try:
+                        run_json_path = latest_run / "run.json"
+                        run_data = json.loads(run_json_path.read_text())
+                        run_data["app_id"] = active_scans[scan_id].get("app_id")
+                        run_data["app_name"] = active_scans[scan_id].get("app_name")
+                        run_json_path.write_text(json.dumps(run_data, indent=2))
+                    except Exception:
+                        pass
                 else:
                     active_scans[scan_id]["status"] = "failed"
                     active_scans[scan_id]["error"] = f"No output. Process exit: {process.returncode}. Output: {output[-500:]}"
@@ -1073,6 +1107,10 @@ async def delete_mobile_app(app_id: int) -> dict:
 @app.get("/api/mobile-apps/{app_id}/scans")
 async def list_mobile_app_scans(app_id: int) -> list[dict]:
     """List all scans for a mobile app."""
+    # Get app name for fallback matching
+    app = next((a for a in mobile_apps_store if a["id"] == app_id), None)
+    app_name = app["name"] if app else None
+
     scans = []
     for scan_id, info in active_scans.items():
         if info.get("type") == "mobile" and info.get("app_id") == app_id:
@@ -1082,17 +1120,27 @@ async def list_mobile_app_scans(app_id: int) -> list[dict]:
                 "started_at": info.get("started_at"),
                 "scan_mode": info.get("scan_mode"),
             })
-    # Also check historical scans
+    # Also check historical scans — match by app_id first, then by app_name fallback
     runs_dir = Path("aegis_runs")
+    seen_run_ids = {s["id"] for s in scans}
     if runs_dir.exists():
         for run_dir in runs_dir.iterdir():
-            if not run_dir.is_dir():
+            if not run_dir.is_dir() or run_dir.name in seen_run_ids:
                 continue
             run_json = run_dir / "run.json"
             if run_json.exists():
                 try:
                     data = json.loads(run_json.read_text())
-                    if data.get("app_id") == app_id:
+                    matched = data.get("app_id") == app_id
+                    if not matched and app_name:
+                        # Fallback: match by app_name in run.json or targets_info
+                        matched = data.get("app_name") == app_name
+                        if not matched:
+                            for t in data.get("targets_info", []):
+                                if t.get("type") == "mobile_app" and app_name.lower() in str(t.get("original", "")).lower():
+                                    matched = True
+                                    break
+                    if matched:
                         scans.append({
                             "id": run_dir.name,
                             "status": data.get("status", "unknown"),
@@ -1488,9 +1536,11 @@ async def get_settings() -> dict:
     return {
         "model": model,
         "api_key": "***" if api_key else "",
+        "api_key_configured": bool(api_key),
         "api_base": api_base,
-        "image": image,
-        "backend": settings.runtime.backend,
+        "scan_mode": web_settings.get("scan_mode", "deep"),
+        "reasoning_effort": settings.llm.reasoning_effort,
+        "timeout": settings.llm.timeout,
         "telemetry": settings.telemetry.enabled,
     }
 
@@ -1504,8 +1554,14 @@ async def update_settings(update: SettingsUpdate) -> dict:
         os.environ["LLM_API_KEY"] = update.api_key
     if update.api_base:
         os.environ["LLM_API_BASE"] = update.api_base
-    if update.image:
-        os.environ["AEGIS_IMAGE"] = update.image
+    if update.backend:
+        os.environ["AEGIS_RUNTIME_BACKEND"] = update.backend
+    if update.reasoning_effort:
+        os.environ["AEGIS_REASONING_EFFORT"] = update.reasoning_effort
+    if update.timeout is not None:
+        os.environ["LLM_TIMEOUT"] = str(update.timeout)
+    if update.telemetry is not None:
+        os.environ["AEGIS_TELEMETRY"] = "true" if update.telemetry else "false"
     
     # Persist to disk
     settings_to_save = {}
@@ -1515,8 +1571,16 @@ async def update_settings(update: SettingsUpdate) -> dict:
         settings_to_save["api_key"] = update.api_key
     if update.api_base:
         settings_to_save["api_base"] = update.api_base
-    if update.image:
-        settings_to_save["image"] = update.image
+    if update.backend:
+        settings_to_save["backend"] = update.backend
+    if update.scan_mode:
+        settings_to_save["scan_mode"] = update.scan_mode
+    if update.reasoning_effort:
+        settings_to_save["reasoning_effort"] = update.reasoning_effort
+    if update.timeout is not None:
+        settings_to_save["timeout"] = update.timeout
+    if update.telemetry is not None:
+        settings_to_save["telemetry"] = update.telemetry
     
     if settings_to_save:
         current = _load_web_settings()

@@ -31,7 +31,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { api } from '../lib/api'
+import { api, formatDate } from '../lib/api'
 
 // ─── Color Constants ────────────────────────────────────────────────────────
 
@@ -419,7 +419,7 @@ function RecentScans({ scans }: { scans: any[] }) {
                   <span className="text-xs capitalize">{scan.type}</span>
                 </div>
                 <span className="text-xs text-gray-500">
-                  {scan.started_at ? new Date(scan.started_at).toLocaleDateString() : '-'}
+                  {formatDate(scan.started_at)}
                 </span>
               </div>
             </Link>

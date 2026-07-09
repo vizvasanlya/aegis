@@ -29,7 +29,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, formatDate, formatDateTime } from '../lib/api'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -257,7 +257,7 @@ export default function ApiTesting() {
                   <p className="mt-1 text-xs text-gray-500 truncate">{ep.base_url}</p>
                   {ep.last_tested && (
                     <p className="mt-0.5 text-[10px] text-gray-600">
-                      Last tested: {new Date(ep.last_tested).toLocaleDateString()}
+                      Last tested: {formatDate(ep.last_tested)}
                     </p>
                   )}
                 </button>
@@ -597,7 +597,7 @@ function HistoryPanel({
                   </div>
                 </div>
                 <p className="mt-1 text-[10px] text-gray-600">
-                  {new Date(entry.timestamp).toLocaleString()}
+                  {formatDateTime(entry.timestamp)}
                 </p>
               </button>
             ))}

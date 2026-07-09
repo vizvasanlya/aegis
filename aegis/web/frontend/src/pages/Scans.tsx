@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Scan, Trash2, ExternalLink } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, formatDateTime } from '../lib/api'
 
 export default function Scans() {
   const [scans, setScans] = useState<any[]>([])
@@ -57,7 +57,7 @@ export default function Scans() {
                   <StatusBadge status={scan.status} />
                 </td>
                 <td className="px-6 py-4 text-gray-400">
-                  {scan.started_at ? new Date(scan.started_at).toLocaleString() : '-'}
+                  {formatDateTime(scan.started_at)}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2">

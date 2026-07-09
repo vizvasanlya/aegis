@@ -101,17 +101,6 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* Footer */}
-      <div className="border-t border-gray-800 p-4">
-        <div className="rounded-lg bg-gray-800/50 p-3">
-          <p className="text-xs text-gray-400">Docker Status</p>
-          <div className="mt-1 flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-400"></div>
-            <span className="text-xs text-gray-300">Connected</span>
-          </div>
-        </div>
-      </div>
     </aside>
   )
 }
