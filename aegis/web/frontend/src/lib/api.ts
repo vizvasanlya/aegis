@@ -96,6 +96,7 @@ export const api = {
 
   // Report
   getReportUrl: (scanId: string) => `${API_BASE}/scans/${scanId}/report`,
+  getSarifUrl: (scanId: string) => `${API_BASE}/scans/${scanId}/sarif`,
 
   // Stats
   getStats: () => fetchApi<any>('/stats'),

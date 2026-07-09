@@ -1,0 +1,91 @@
+# Aegis ignore patterns (like .gitignore)
+
+# Version control
+.git
+.git/**
+
+# Dependencies
+node_modules
+node_modules/**
+vendor
+vendor/**
+.venv
+.venv/**
+venv
+__pycache__
+__pycache__/**
+
+# Build artifacts
+dist
+dist/**
+build
+build/**
+.next
+.next/**
+target
+target/**
+*.egg-info
+
+# IDE
+.idea
+.idea/**
+.vscode
+.vscode/**
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Aegis internal
+aegis_runs
+aegis_runs/**
+.aegis
+.aegis/**
+.mimocode
+.mimocode/**
+
+# Binary files (not scannable)
+*.min.js
+*.min.css
+*.map
+*.wasm
+*.so
+*.dylib
+*.dll
+*.exe
+*.apk
+*.ipa
+*.aab
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# Lock files (not security-relevant)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Gemfile.lock
+Pipfile.lock
+composer.lock
+
+# Test fixtures
+test_httpbin.py

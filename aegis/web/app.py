@@ -568,6 +568,66 @@ async def download_report(scan_id: str):
     return HTMLResponse(content=html)
 
 
+@app.get("/api/scans/{scan_id}/sarif")
+async def download_sarif(scan_id: str):
+    """Generate and download a SARIF (Static Analysis Results Interchange Format) report."""
+    run_dir = Path("aegis_runs") / scan_id
+    vuln_file = run_dir / "vulnerabilities.json"
+
+    vulns = []
+    if vuln_file.exists():
+        vulns = json.loads(vuln_file.read_text())
+
+    rules = []
+    results = []
+    for i, v in enumerate(vulns):
+        cwe_id = v.get("cwe_id", 0)
+        rule_id = f"CWE-{cwe_id}" if cwe_id else f"VULN-{i}"
+        severity = v.get("severity", "unknown")
+
+        rules.append({
+            "id": rule_id,
+            "name": str(v.get("title", "Unknown")),
+            "shortDescription": {"text": str(v.get("title", ""))},
+            "fullDescription": {"text": str(v.get("description", ""))},
+            "helpUri": f"https://cwe.mitre.org/data/definitions/{cwe_id}.html" if cwe_id else "",
+            "properties": {"tags": ["security", severity]},
+        })
+
+        level = "error" if severity in ("critical", "high") else "warning"
+        results.append({
+            "ruleId": rule_id,
+            "message": {"text": str(v.get("description", ""))},
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": str(v.get("endpoint", "unknown"))},
+                    "region": {"startLine": 1},
+                }
+            }],
+            "level": level,
+            "properties": {"cvss": v.get("cvss", 0)},
+        })
+
+    sarif = {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "Aegis",
+                    "version": "1.0.0",
+                    "informationUri": "https://github.com/vizvasanlya/aegis",
+                    "rules": rules,
+                }
+            },
+            "results": results,
+        }],
+    }
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=sarif)
+
+
 @app.get("/api/vulnerabilities")
 async def list_all_vulnerabilities() -> list[dict]:
     """List vulnerabilities across all scans."""
