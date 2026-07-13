@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import logging
@@ -42,6 +43,83 @@ ScopeAction = Literal["get", "list", "create", "update", "delete"]
 def _ctx_client(ctx: RunContextWrapper) -> Client | None:
     inner = ctx.context if isinstance(ctx.context, dict) else {}
     return inner.get("caido_client")
+
+
+async def _reconnect_client(ctx: RunContextWrapper) -> Client | None:
+    """Reconnect a stale Caido client by creating a fresh connection.
+
+    The bootstrap client's GraphQL WebSocket can go stale over long scans.
+    This function creates a new client using the same URL and token,
+    then updates the context so subsequent calls use the fresh connection.
+    """
+    inner = ctx.context if isinstance(ctx.context, dict) else {}
+    old_client = inner.get("caido_client")
+    if old_client is None:
+        return None
+
+    # Get the bootstrap URL from context (stored during session creation)
+    base_url = inner.get("caido_url")
+    if not base_url:
+        base_url = caido_api.caido_url()
+
+    try:
+        # Close the stale connection
+        await old_client.aclose()
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        # Login fresh and create a new client using the bootstrap URL
+        from caido_sdk_client import Client as CaidoClient
+        from caido_sdk_client import TokenAuthOptions
+
+        # Use the token-based login via the graphql endpoint with the correct URL
+        token = await asyncio.to_thread(caido_api._login_as_guest, base_url)
+        new_client = CaidoClient(base_url, auth=TokenAuthOptions(token=token))
+        await new_client.connect()
+
+        # Select a project (create if needed)
+        try:
+            projects = await new_client.project.list()
+            if projects:
+                await new_client.project.select(projects[0].id)
+            else:
+                from caido_sdk_client.types import CreateProjectOptions
+
+                project = await new_client.project.create(
+                    CreateProjectOptions(name="sandbox", temporary=True)
+                )
+                await new_client.project.select(project.id)
+        except Exception:  # noqa: BLE001
+            logger.debug("Project selection failed during reconnect, continuing")
+
+        # Update context with fresh client
+        inner["caido_client"] = new_client
+        logger.info("Caido client reconnected successfully to %s", base_url)
+        return new_client
+
+    except Exception as exc:
+        logger.warning("Caido client reconnect failed: %s", exc)
+        return None
+
+
+def _is_network_error(exc: Exception) -> bool:
+    """Check if an exception is a Caido network/transient error that warrants reconnection."""
+    exc_str = str(exc).lower()
+    return any(
+        pattern in exc_str
+        for pattern in [
+            "network error",
+            "connection",
+            "transport",
+            "websocket",
+            "closed",
+            "broken pipe",
+            "reset by peer",
+            "eof",
+            "timeout",
+        ]
+    )
 
 
 def _to_tool_json(value: Any) -> Any:
@@ -145,69 +223,71 @@ async def list_requests(
     if client is None:
         return _no_client()
 
-    try:
-        connection = await caido_api.list_requests_with_client(
-            client,
-            httpql_filter=httpql_filter,
-            first=first,
-            after=after,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            scope_id=scope_id,
-        )
-
-        entries = []
-        for edge in connection.edges:
-            req = edge.node.request
-            resp = edge.node.response
-            response_payload: dict[str, Any] | None = None
-            if resp is not None:
-                response_payload = {
-                    "id": resp.id,
-                    "status_code": resp.status_code,
-                    "length": resp.length,
-                    "created_at": resp.created_at.isoformat(),
-                }
-                # Caido populates ``roundtripTime`` for some traffic sources
-                # and leaves it as ``0`` for others (notably proxy captures
-                # of upstream env-routed traffic). Surface the value only
-                # when it's actually measured so the model doesn't waste
-                # tokens reading a zero field on every entry.
-                if resp.roundtrip_time:
-                    response_payload["roundtrip_ms"] = resp.roundtrip_time
-            entries.append(
-                {
-                    "cursor": edge.cursor,
-                    "request": {
-                        "id": req.id,
-                        "host": req.host,
-                        "port": req.port,
-                        "method": req.method,
-                        "path": req.path,
-                        "query": req.query,
-                        "is_tls": req.is_tls,
-                        "created_at": req.created_at.isoformat(),
-                    },
-                    "response": response_payload,
-                },
+    for attempt in range(2):
+        try:
+            connection = await caido_api.list_requests_with_client(
+                client,
+                httpql_filter=httpql_filter,
+                first=first,
+                after=after,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                scope_id=scope_id,
             )
 
-        return json.dumps(
-            {
-                "success": True,
-                "entries": entries,
-                "page_info": {
-                    "has_next_page": connection.page_info.has_next_page,
-                    "has_previous_page": connection.page_info.has_previous_page,
-                    "start_cursor": connection.page_info.start_cursor,
-                    "end_cursor": connection.page_info.end_cursor,
+            entries = []
+            for edge in connection.edges:
+                req = edge.node.request
+                resp = edge.node.response
+                response_payload: dict[str, Any] | None = None
+                if resp is not None:
+                    response_payload = {
+                        "id": resp.id,
+                        "status_code": resp.status_code,
+                        "length": resp.length,
+                        "created_at": resp.created_at.isoformat(),
+                    }
+                    if resp.roundtrip_time:
+                        response_payload["roundtrip_ms"] = resp.roundtrip_time
+                entries.append(
+                    {
+                        "cursor": edge.cursor,
+                        "request": {
+                            "id": req.id,
+                            "host": req.host,
+                            "port": req.port,
+                            "method": req.method,
+                            "path": req.path,
+                            "query": req.query,
+                            "is_tls": req.is_tls,
+                            "created_at": req.created_at.isoformat(),
+                        },
+                        "response": response_payload,
+                    },
+                )
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "entries": entries,
+                    "page_info": {
+                        "has_next_page": connection.page_info.has_next_page,
+                        "has_previous_page": connection.page_info.has_previous_page,
+                        "start_cursor": connection.page_info.start_cursor,
+                        "end_cursor": connection.page_info.end_cursor,
+                    },
                 },
-            },
-            ensure_ascii=False,
-            default=str,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return _err("list_requests", exc)
+                ensure_ascii=False,
+                default=str,
+            )
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and _is_network_error(exc):
+                logger.info("Caido connection stale, reconnecting (attempt %d)", attempt + 1)
+                client = await _reconnect_client(ctx)
+                if client is None:
+                    return _err("list_requests", exc)
+                continue
+            return _err("list_requests", exc)
 
 
 @function_tool(timeout=60)
@@ -248,45 +328,52 @@ async def view_request(
     if client is None:
         return _no_client()
 
-    try:
-        result = await caido_api.get_request_with_client(client, request_id, part=part)
-        if result is None:
+    for attempt in range(2):
+        try:
+            result = await caido_api.get_request_with_client(client, request_id, part=part)
+            if result is None:
+                return json.dumps(
+                    {"success": False, "error": f"Request {request_id} not found"},
+                    ensure_ascii=False,
+                    default=str,
+                )
+
+            raw_bytes = (
+                result.request.raw
+                if part == "request"
+                else (result.response.raw if result.response is not None else None)
+            )
+            if raw_bytes is None:
+                return json.dumps(
+                    {
+                        "success": False,
+                        "error": f"No raw {part} for {request_id}",
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                )
+            content = raw_bytes.decode("utf-8", errors="replace")
+
+            if search_pattern:
+                return json.dumps(
+                    _format_search_hits(content, search_pattern),
+                    ensure_ascii=False,
+                    default=str,
+                )
+
             return json.dumps(
-                {"success": False, "error": f"Request {request_id} not found"},
+                _format_text_page(content, page=page, page_size=page_size),
                 ensure_ascii=False,
                 default=str,
             )
-
-        raw_bytes = (
-            result.request.raw
-            if part == "request"
-            else (result.response.raw if result.response is not None else None)
-        )
-        if raw_bytes is None:
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": f"No raw {part} for {request_id}",
-                },
-                ensure_ascii=False,
-                default=str,
-            )
-        content = raw_bytes.decode("utf-8", errors="replace")
-
-        if search_pattern:
-            return json.dumps(
-                _format_search_hits(content, search_pattern),
-                ensure_ascii=False,
-                default=str,
-            )
-
-        return json.dumps(
-            _format_text_page(content, page=page, page_size=page_size),
-            ensure_ascii=False,
-            default=str,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return _err("view_request", exc)
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and _is_network_error(exc):
+                logger.info("Caido connection stale, reconnecting (attempt %d)", attempt + 1)
+                client = await _reconnect_client(ctx)
+                if client is None:
+                    return _err("view_request", exc)
+                continue
+            return _err("view_request", exc)
 
 
 def _format_search_hits(content: str, pattern: str) -> dict[str, Any]:
@@ -364,30 +451,37 @@ async def repeat_request(
         return _no_client()
     mods = modifications or {}
 
-    try:
-        result = await caido_api.get_request_with_client(client, request_id, part="request")
-        if result is None or result.request.raw is None:
-            return json.dumps(
-                {"success": False, "error": f"Request {request_id} not found"},
-                ensure_ascii=False,
-                default=str,
-            )
+    for attempt in range(2):
+        try:
+            result = await caido_api.get_request_with_client(client, request_id, part="request")
+            if result is None or result.request.raw is None:
+                return json.dumps(
+                    {"success": False, "error": f"Request {request_id} not found"},
+                    ensure_ascii=False,
+                    default=str,
+                )
 
-        original = result.request
-        raw_str = result.request.raw.decode("utf-8", errors="replace")
-        components = caido_api.parse_raw_request(raw_str)
-        full_url = caido_api.full_url_from_components(original, components, mods)
-        modified = caido_api.apply_modifications(components, mods, full_url)
-        connection, raw = caido_api.build_raw_request(
-            method=modified["method"],
-            url=modified["url"],
-            headers=modified["headers"],
-            body=modified["body"],
-        )
-        replay = await caido_api.replay_send_raw(client, raw=raw, connection=connection)
-        return _format_replay_tool_result(replay)
-    except Exception as exc:  # noqa: BLE001
-        return _err("repeat_request", exc)
+            original = result.request
+            raw_str = result.request.raw.decode("utf-8", errors="replace")
+            components = caido_api.parse_raw_request(raw_str)
+            full_url = caido_api.full_url_from_components(original, components, mods)
+            modified = caido_api.apply_modifications(components, mods, full_url)
+            connection, raw = caido_api.build_raw_request(
+                method=modified["method"],
+                url=modified["url"],
+                headers=modified["headers"],
+                body=modified["body"],
+            )
+            replay = await caido_api.replay_send_raw(client, raw=raw, connection=connection)
+            return _format_replay_tool_result(replay)
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and _is_network_error(exc):
+                logger.info("Caido connection stale, reconnecting (attempt %d)", attempt + 1)
+                client = await _reconnect_client(ctx)
+                if client is None:
+                    return _err("repeat_request", exc)
+                continue
+            return _err("repeat_request", exc)
 
 
 def _format_replay_tool_result(replay: dict[str, Any]) -> str:
@@ -440,17 +534,24 @@ async def list_sitemap(
     client = _ctx_client(ctx)
     if client is None:
         return _no_client()
-    try:
-        payload = await caido_api.list_sitemap_with_client(
-            client,
-            scope_id=scope_id,
-            parent_id=parent_id,
-            depth=depth,
-            page=page,
-        )
-        return json.dumps(payload, ensure_ascii=False, default=str)
-    except Exception as exc:  # noqa: BLE001
-        return _err("list_sitemap", exc)
+    for attempt in range(2):
+        try:
+            payload = await caido_api.list_sitemap_with_client(
+                client,
+                scope_id=scope_id,
+                parent_id=parent_id,
+                depth=depth,
+                page=page,
+            )
+            return json.dumps(payload, ensure_ascii=False, default=str)
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and _is_network_error(exc):
+                logger.info("Caido connection stale, reconnecting (attempt %d)", attempt + 1)
+                client = await _reconnect_client(ctx)
+                if client is None:
+                    return _err("list_sitemap", exc)
+                continue
+            return _err("list_sitemap", exc)
 
 
 @function_tool(timeout=60)
@@ -471,11 +572,18 @@ async def view_sitemap_entry(
     client = _ctx_client(ctx)
     if client is None:
         return _no_client()
-    try:
-        payload = await caido_api.view_sitemap_entry_with_client(client, entry_id)
-        return json.dumps(payload, ensure_ascii=False, default=str)
-    except Exception as exc:  # noqa: BLE001
-        return _err("view_sitemap_entry", exc)
+    for attempt in range(2):
+        try:
+            payload = await caido_api.view_sitemap_entry_with_client(client, entry_id)
+            return json.dumps(payload, ensure_ascii=False, default=str)
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and _is_network_error(exc):
+                logger.info("Caido connection stale, reconnecting (attempt %d)", attempt + 1)
+                client = await _reconnect_client(ctx)
+                if client is None:
+                    return _err("view_sitemap_entry", exc)
+                continue
+            return _err("view_sitemap_entry", exc)
 
 
 @function_tool(timeout=60)
@@ -528,69 +636,82 @@ async def scope_rules(
     if client is None:
         return _no_client()
 
-    try:
-        if action == "list":
-            scopes = await caido_api.scope_list(client)
-            return json.dumps(
-                {"success": True, "scopes": [_to_tool_json(s) for s in scopes]},
-                ensure_ascii=False,
-                default=str,
-            )
-        if action == "get":
+    for attempt in range(2):
+        try:
+            if action == "list":
+                scopes = await caido_api.scope_list(client)
+                return json.dumps(
+                    {"success": True, "scopes": [_to_tool_json(s) for s in scopes]},
+                    ensure_ascii=False,
+                    default=str,
+                )
+            if action == "get":
+                if not scope_id:
+                    return json.dumps(
+                        {"success": False, "error": "Scope_id is required for action='get'"},
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                scope = await caido_api.scope_get(client, scope_id)
+                return json.dumps(
+                    {"success": True, "scope": _to_tool_json(scope)},
+                    ensure_ascii=False,
+                    default=str,
+                )
+            if action == "create":
+                if not scope_name:
+                    return json.dumps(
+                        {"success": False, "error": "Scope_name is required for action='create'"},
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                scope = await caido_api.scope_create(
+                    client, name=scope_name, allowlist=allowlist, denylist=denylist
+                )
+                return json.dumps(
+                    {"success": True, "scope": _to_tool_json(scope)},
+                    ensure_ascii=False,
+                    default=str,
+                )
+            if action == "update":
+                if not scope_id or not scope_name:
+                    return json.dumps(
+                        {
+                            "success": False,
+                            "error": "Scope_id and scope_name are required for action='update'",
+                        },
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                scope = await caido_api.scope_update(
+                    client, scope_id, name=scope_name, allowlist=allowlist, denylist=denylist
+                )
+                return json.dumps(
+                    {"success": True, "scope": _to_tool_json(scope)},
+                    ensure_ascii=False,
+                    default=str,
+                )
             if not scope_id:
                 return json.dumps(
-                    {"success": False, "error": "Scope_id is required for action='get'"},
+                    {"success": False, "error": "Scope_id is required for action='delete'"},
                     ensure_ascii=False,
                     default=str,
                 )
-            scope = await caido_api.scope_get(client, scope_id)
+            await caido_api.scope_delete(client, scope_id)
             return json.dumps(
-                {"success": True, "scope": _to_tool_json(scope)}, ensure_ascii=False, default=str
-            )
-        if action == "create":
-            if not scope_name:
-                return json.dumps(
-                    {"success": False, "error": "Scope_name is required for action='create'"},
-                    ensure_ascii=False,
-                    default=str,
-                )
-            scope = await caido_api.scope_create(
-                client, name=scope_name, allowlist=allowlist, denylist=denylist
-            )
-            return json.dumps(
-                {"success": True, "scope": _to_tool_json(scope)}, ensure_ascii=False, default=str
-            )
-        if action == "update":
-            if not scope_id or not scope_name:
-                return json.dumps(
-                    {
-                        "success": False,
-                        "error": "Scope_id and scope_name are required for action='update'",
-                    },
-                    ensure_ascii=False,
-                    default=str,
-                )
-            scope = await caido_api.scope_update(
-                client, scope_id, name=scope_name, allowlist=allowlist, denylist=denylist
-            )
-            return json.dumps(
-                {"success": True, "scope": _to_tool_json(scope)}, ensure_ascii=False, default=str
-            )
-        if not scope_id:
-            return json.dumps(
-                {"success": False, "error": "Scope_id is required for action='delete'"},
+                {
+                    "success": True,
+                    "deleted": scope_id,
+                    "message": f"Scope {scope_id} deleted",
+                },
                 ensure_ascii=False,
                 default=str,
             )
-        await caido_api.scope_delete(client, scope_id)
-        return json.dumps(
-            {
-                "success": True,
-                "deleted": scope_id,
-                "message": f"Scope {scope_id} deleted",
-            },
-            ensure_ascii=False,
-            default=str,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return _err("scope_rules", exc)
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 0 and _is_network_error(exc):
+                logger.info("Caido connection stale, reconnecting (attempt %d)", attempt + 1)
+                client = await _reconnect_client(ctx)
+                if client is None:
+                    return _err("scope_rules", exc)
+                continue
+            return _err("scope_rules", exc)

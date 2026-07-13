@@ -131,6 +131,7 @@ async def create_or_reuse(
         "client": client,
         "session": session,
         "caido_client": caido_client,  # None if Caido bootstrap failed
+        "caido_url": host_caido_url,  # Store for reconnection
     }
     _SESSION_CACHE[scan_id] = bundle
     logger.info("Sandbox session for scan %s ready and cached", scan_id)

@@ -583,3 +583,61 @@ async def delete_todo(ctx: RunContextWrapper, todo_ids: str) -> str:
     if errors:
         response["errors"] = errors
     return json.dumps(response, ensure_ascii=False, default=str)
+
+
+_VALID_TEST_CATEGORIES = {
+    "auth", "access_control", "injection", "server_side",
+    "client_side", "configuration", "business_logic", "api_security",
+}
+
+
+@function_tool(timeout=30)
+async def track_category_tested(
+    ctx: RunContextWrapper,
+    category: str,
+) -> str:
+    """Mark a vulnerability testing category as completed.
+
+    You MUST call this after finishing testing for each category.
+    The finish_scan tool checks that ALL 8 categories are marked
+    before allowing scan completion.
+
+    Valid categories:
+    - auth: Authentication & Session (login, JWT, OAuth, session mgmt)
+    - access_control: Access Control (IDOR, privilege escalation, forced browsing)
+    - injection: Injection (SQLi, NoSQLi, XSS, SSTI, XXE, command injection)
+    - server_side: Server-Side (SSRF, path traversal, file upload, deserialization)
+    - client_side: Client-Side (DOM XSS, CSRF, clickjacking, open redirect)
+    - configuration: Configuration & Infrastructure (headers, errors, info disclosure)
+    - business_logic: Business Logic (race conditions, workflow bypass, price manipulation)
+    - api_security: API Security (mass assignment, GraphQL, rate limiting)
+
+    Args:
+        category: One of the 8 valid category IDs listed above.
+    """
+    if category not in _VALID_TEST_CATEGORIES:
+        return json.dumps({
+            "success": False,
+            "error": f"Invalid category: {category}. Valid: {', '.join(sorted(_VALID_TEST_CATEGORIES))}",
+        }, ensure_ascii=False, default=str)
+
+    inner = ctx.context if isinstance(ctx.context, dict) else {}
+    tested = inner.get("tested_categories")
+    if tested is None:
+        tested = set()
+        inner["tested_categories"] = tested
+    elif not isinstance(tested, set):
+        tested = set(tested)
+        inner["tested_categories"] = tested
+
+    tested.add(category)
+    remaining = _VALID_TEST_CATEGORIES - tested
+
+    return json.dumps({
+        "success": True,
+        "category": category,
+        "tested_count": len(tested),
+        "total_categories": len(_VALID_TEST_CATEGORIES),
+        "remaining": sorted(remaining),
+        "message": f"Category '{category}' marked as tested. {len(remaining)} categories remaining.",
+    }, ensure_ascii=False, default=str)

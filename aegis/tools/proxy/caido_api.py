@@ -66,12 +66,13 @@ def _graphql_url() -> str:
     return f"{base_url}/graphql"
 
 
-def _login_as_guest() -> str:
+def _login_as_guest(base_url: str | None = None) -> str:
     body = json.dumps({"query": "mutation { loginAsGuest { token { accessToken } } }"}).encode(
         "utf-8"
     )
+    url = f"{base_url.rstrip('/')}/graphql" if base_url else _graphql_url()
     req = urllib.request.Request(  # noqa: S310
-        _graphql_url(),
+        url,
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",

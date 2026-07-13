@@ -85,6 +85,26 @@ _COMMAND_INJECTION_EVIDENCE = [
     "daemon:",
 ]
 
+_SSRF_INDICATORS = [
+    # AWS metadata
+    r"ami-id",
+    r"instance-id",
+    r"iam/security-credentials",
+    r"local-ipv4",
+    # GCP metadata
+    r"computeMetadata",
+    # Azure metadata
+    r"Metadata",
+    # Internal service responses
+    r"redis_version",
+    r"mysql",
+    r"postgres",
+    r"mongodb",
+    # File read via SSRF
+    r"root:.*:0:0:",
+    r"www-data:.*:0:0:",
+]
+
 
 def _check_sqli(response: HTTPResponse, test_payload: str) -> str | None:
     """Check for SQL injection indicators."""
@@ -108,8 +128,7 @@ def _check_auth_bypass(response: HTTPResponse, test_name: str) -> str | None:
 
     # If we sent no token or invalid token and got 200 with token-like response
     if any(
-        name in test_name
-        for name in ["no_token", "empty_bearer", "invalid_token", "expired_token"]
+        name in test_name for name in ["no_token", "empty_bearer", "invalid_token", "expired_token"]
     ):
         for status, pattern in _AUTH_BYPASS_INDICATORS:
             if response.status_code == status and re.search(pattern, response.body):
@@ -203,49 +222,152 @@ def _check_mass_assignment(response: HTTPResponse, test_name: str) -> str | None
     return None
 
 
+def _check_ssrf(response: HTTPResponse, test_payload: str) -> str | None:
+    """Check for SSRF indicators."""
+    if response.status_code not in (200, 500):
+        return None
+
+    body_lower = response.body.lower()
+
+    for pattern in _SSRF_INDICATORS:
+        if re.search(pattern, body_lower):
+            return f"SSRF: internal resource accessed — {pattern}"
+
+    # Check if internal IP was reflected
+    if "169.254.169.254" in test_payload and response.status_code == 200:
+        if len(response.body) > 10:
+            return "SSRF: AWS metadata endpoint responded"
+
+    return None
+
+
+def _check_idor(response: HTTPResponse, test_name: str) -> str | None:
+    """Check for IDOR indicators."""
+    if "IDOR" not in test_name:
+        return None
+
+    if response.status_code == 200:
+        # If we got 200 on an IDOR test, it might be exploitable
+        if '"email"' in response.body or '"phone"' in response.body or '"name"' in response.body:
+            return "IDOR: cross-user data access possible"
+
+    return None
+
+
 def _determine_severity(
     category: str, evidence: str, status_code: int
 ) -> tuple[str, dict[str, str]]:
     """Determine CVSS severity based on finding type."""
     severity_map = {
-        "injection": ("high", {
-            "attack_vector": "N", "attack_complexity": "L",
-            "privileges_required": "N", "user_interaction": "N",
-            "scope": "U", "confidentiality": "H",
-            "integrity": "H", "availability": "N",
-        }),
-        "auth": ("critical", {
-            "attack_vector": "N", "attack_complexity": "L",
-            "privileges_required": "N", "user_interaction": "N",
-            "scope": "C", "confidentiality": "H",
-            "integrity": "H", "availability": "N",
-        }),
-        "idor": ("high", {
-            "attack_vector": "N", "attack_complexity": "L",
-            "privileges_required": "L", "user_interaction": "N",
-            "scope": "U", "confidentiality": "H",
-            "integrity": "N", "availability": "N",
-        }),
-        "info_disclosure": ("medium", {
-            "attack_vector": "N", "attack_complexity": "L",
-            "privileges_required": "N", "user_interaction": "N",
-            "scope": "U", "confidentiality": "L",
-            "integrity": "N", "availability": "N",
-        }),
-        "business_logic": ("medium", {
-            "attack_vector": "N", "attack_complexity": "H",
-            "privileges_required": "L", "user_interaction": "N",
-            "scope": "U", "confidentiality": "L",
-            "integrity": "L", "availability": "N",
-        }),
+        "injection": (
+            "high",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "N",
+                "user_interaction": "N",
+                "scope": "U",
+                "confidentiality": "H",
+                "integrity": "H",
+                "availability": "N",
+            },
+        ),
+        "auth": (
+            "critical",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "N",
+                "user_interaction": "N",
+                "scope": "C",
+                "confidentiality": "H",
+                "integrity": "H",
+                "availability": "N",
+            },
+        ),
+        "idor": (
+            "high",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "L",
+                "user_interaction": "N",
+                "scope": "U",
+                "confidentiality": "H",
+                "integrity": "N",
+                "availability": "N",
+            },
+        ),
+        "ssrf": (
+            "critical",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "N",
+                "user_interaction": "N",
+                "scope": "C",
+                "confidentiality": "H",
+                "integrity": "H",
+                "availability": "N",
+            },
+        ),
+        "csrf": (
+            "high",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "N",
+                "user_interaction": "R",
+                "scope": "U",
+                "confidentiality": "N",
+                "integrity": "H",
+                "availability": "N",
+            },
+        ),
+        "info_disclosure": (
+            "medium",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "N",
+                "user_interaction": "N",
+                "scope": "U",
+                "confidentiality": "L",
+                "integrity": "N",
+                "availability": "N",
+            },
+        ),
+        "business_logic": (
+            "medium",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "H",
+                "privileges_required": "L",
+                "user_interaction": "N",
+                "scope": "U",
+                "confidentiality": "L",
+                "integrity": "L",
+                "availability": "N",
+            },
+        ),
     }
 
-    base_sev, cvss = severity_map.get(category, ("medium", {
-        "attack_vector": "N", "attack_complexity": "L",
-        "privileges_required": "N", "user_interaction": "N",
-        "scope": "U", "confidentiality": "L",
-        "integrity": "N", "availability": "N",
-    }))
+    base_sev, cvss = severity_map.get(
+        category,
+        (
+            "medium",
+            {
+                "attack_vector": "N",
+                "attack_complexity": "L",
+                "privileges_required": "N",
+                "user_interaction": "N",
+                "scope": "U",
+                "confidentiality": "L",
+                "integrity": "N",
+                "availability": "N",
+            },
+        ),
+    )
 
     # Upgrade severity for critical patterns
     if "SQL error" in evidence or "Command injection" in evidence:
@@ -286,6 +408,10 @@ def analyze_result(result: FuzzResult) -> Vulnerability | None:
         evidence = _check_auth_bypass(response, test.name)
     if not evidence and "BizLogic" in test.name:
         evidence = _check_mass_assignment(response, test.name)
+    if not evidence and "SSRF" in test.name:
+        evidence = _check_ssrf(response, payload)
+    if not evidence and "IDOR" in test.name:
+        evidence = _check_idor(response, test.name)
     if not evidence:
         evidence = _check_info_disclosure(response)
 
@@ -298,6 +424,8 @@ def analyze_result(result: FuzzResult) -> Vulnerability | None:
         "injection": "CWE-89",
         "auth": "CWE-287",
         "idor": "CWE-639",
+        "ssrf": "CWE-918",
+        "csrf": "CWE-352",
         "info_disclosure": "CWE-200",
         "business_logic": "CWE-840",
     }

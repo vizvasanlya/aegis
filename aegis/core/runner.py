@@ -216,6 +216,7 @@ async def run_aegis_scan(
             "coordinator": coordinator,
             "sandbox_session": bundle["session"],
             "caido_client": bundle["caido_client"],
+            "caido_url": bundle.get("caido_url"),
             "agent_id": root_id,
             "parent_id": None,
             "interactive": interactive,

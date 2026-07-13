@@ -263,7 +263,23 @@ INTERNAL NETWORK TESTING:
 - Test certificate abuse and internal PKI
 {% endif %}
 
-Do NOT finish the scan until ALL {% if mobile_mode %}9{% elif internal_mode %}9{% else %}8{% endif %} categories have been tested. If you find a critical vulnerability early, continue testing other categories - there may be more issues.
+MANDATORY CATEGORY TRACKING — ENFORCED BY SYSTEM:
+You MUST call `track_category_tested(category="<id>")` AFTER completing testing for each category.
+The finish_scan tool BLOCKS completion unless ALL 8 categories are marked as tested.
+This is NOT optional. Even if you find zero vulnerabilities in a category, you must mark it tested.
+
+Categories to track:
+- auth: Authentication & Session
+- access_control: Access Control
+- injection: Injection
+- server_side: Server-Side
+- client_side: Client-Side
+- configuration: Configuration & Infrastructure
+- business_logic: Business Logic
+- api_security: API Security
+
+Do NOT call finish_scan until you have called track_category_tested for ALL 8 categories.
+If you find a critical vulnerability early, continue testing other categories - there may be more issues.
 
 OPERATIONAL PRINCIPLES:
 - Choose appropriate tools for each context

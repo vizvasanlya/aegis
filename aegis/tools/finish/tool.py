@@ -14,6 +14,33 @@ from aegis.core.agents import coordinator_from_context
 
 logger = logging.getLogger(__name__)
 
+# Categories that MUST be tested before scan can finish
+_MANDATORY_CATEGORIES = {
+    "auth": "Authentication & Session",
+    "access_control": "Access Control",
+    "injection": "Injection",
+    "server_side": "Server-Side",
+    "client_side": "Client-Side",
+    "configuration": "Configuration & Infrastructure",
+    "business_logic": "Business Logic",
+    "api_security": "API Security",
+}
+
+
+def _check_coverage(ctx: RunContextWrapper) -> list[str]:
+    """Check which mandatory categories have been tested."""
+    inner = ctx.context if isinstance(ctx.context, dict) else {}
+    tested = inner.get("tested_categories", set())
+
+    if not isinstance(tested, set):
+        tested = set(tested) if tested else set()
+
+    missing = []
+    for cat_id, cat_name in _MANDATORY_CATEGORIES.items():
+        if cat_id not in tested:
+            missing.append(f"{cat_id} ({cat_name})")
+    return missing
+
 
 def _do_finish(
     *,
@@ -22,6 +49,7 @@ def _do_finish(
     methodology: str,
     technical_analysis: str,
     recommendations: str,
+    ctx: RunContextWrapper | None = None,
 ) -> dict[str, Any]:
     if parent_id is not None:
         return {
@@ -41,6 +69,18 @@ def _do_finish(
         errors.append("Technical analysis cannot be empty")
     if not recommendations.strip():
         errors.append("Recommendations cannot be empty")
+
+    # Check category coverage
+    if ctx is not None:
+        missing = _check_coverage(ctx)
+        if missing:
+            errors.append(
+                f"CRITICAL: The following {len(missing)} categories were NOT tested: "
+                + ", ".join(missing)
+                + ". You MUST test ALL categories before finishing. "
+                + "Go back and test each missing category using the appropriate tools and skills."
+            )
+
     if errors:
         return {"success": False, "error": "Validation failed", "errors": errors}
 
@@ -181,6 +221,7 @@ async def finish_scan(
         methodology=methodology,
         technical_analysis=technical_analysis,
         recommendations=recommendations,
+        ctx=ctx,
     )
     if (
         result.get("success")

@@ -60,6 +60,7 @@ from aegis.tools.todo.tools import (
     list_todos,
     mark_todo_done,
     mark_todo_pending,
+    track_category_tested,
     update_todo,
 )
 from aegis.tools.web_search.tool import web_search
@@ -385,6 +386,7 @@ _BASE_TOOLS: tuple[Tool, ...] = (
     mark_todo_done,
     mark_todo_pending,
     delete_todo,
+    track_category_tested,
     create_note,
     list_notes,
     get_note,
