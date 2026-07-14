@@ -586,8 +586,14 @@ async def delete_todo(ctx: RunContextWrapper, todo_ids: str) -> str:
 
 
 _VALID_TEST_CATEGORIES = {
-    "auth", "access_control", "injection", "server_side",
-    "client_side", "configuration", "business_logic", "api_security",
+    "auth",
+    "access_control",
+    "injection",
+    "server_side",
+    "client_side",
+    "configuration",
+    "business_logic",
+    "api_security",
 }
 
 
@@ -595,12 +601,18 @@ _VALID_TEST_CATEGORIES = {
 async def track_category_tested(
     ctx: RunContextWrapper,
     category: str,
+    tools_used: str = "[]",
+    endpoints_tested: str = "[]",
+    test_count: int = 0,
+    findings_count: int = 0,
 ) -> str:
-    """Mark a vulnerability testing category as completed.
+    """Mark a vulnerability testing category as completed WITH evidence.
 
-    IMPORTANT: Call this ONCE per category AFTER you have actually performed
-    testing. Do NOT call this multiple times for the same category.
-    The finish_scan tool checks that ALL 8 categories are marked.
+    You MUST provide evidence of testing. The system will verify your
+    evidence meets minimum requirements before marking the category.
+
+    Call this ONCE per category AFTER you have actually performed testing.
+    Do NOT call this multiple times for the same category.
 
     Valid categories:
     - auth: Authentication & Session (login, JWT, OAuth, session mgmt)
@@ -614,14 +626,53 @@ async def track_category_tested(
 
     Args:
         category: One of the 8 valid category IDs listed above.
+        tools_used: JSON array of tools you actually used (e.g., '["sqlmap", "curl"]')
+        endpoints_tested: JSON array of endpoints tested (e.g., '["/api/login", "/api/users"]')
+        test_count: Number of unique tests you performed in this category
+        findings_count: Number of vulnerabilities found (0 if none found is valid)
     """
     if category not in _VALID_TEST_CATEGORIES:
-        return json.dumps({
-            "success": False,
-            "error": f"Invalid category: {category}. Valid: {', '.join(sorted(_VALID_TEST_CATEGORIES))}",
-        }, ensure_ascii=False, default=str)
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"Invalid category: {category}. Valid: {', '.join(sorted(_VALID_TEST_CATEGORIES))}",
+            },
+            ensure_ascii=False,
+            default=str,
+        )
 
     inner = ctx.context if isinstance(ctx.context, dict) else {}
+
+    # Parse evidence
+    try:
+        tools = json.loads(tools_used) if isinstance(tools_used, str) else tools_used
+    except json.JSONDecodeError:
+        tools = []
+    try:
+        endpoints = (
+            json.loads(endpoints_tested) if isinstance(endpoints_tested, str) else endpoints_tested
+        )
+    except json.JSONDecodeError:
+        endpoints = []
+
+    # Check minimums using TestTracker
+    from aegis.tools.enforcement.tracker import get_tracker
+
+    tracker = get_tracker(ctx)
+
+    # Log the tools and endpoints to the tracker
+    for tool in tools:
+        for endpoint in endpoints[:3]:  # Log up to 3 endpoints per tool
+            tracker.log_test(
+                category=category,
+                endpoint=endpoint,
+                test_type="evidence",
+                tool=tool,
+            )
+
+    passed, missing_reasons = tracker.check_minimums(category)
+
+    # Update tested categories
     tested = inner.get("tested_categories")
     if tested is None:
         tested = set()
@@ -631,24 +682,62 @@ async def track_category_tested(
         inner["tested_categories"] = tested
 
     already_tested = category in tested
+
+    if already_tested:
+        return json.dumps(
+            {
+                "success": True,
+                "category": category,
+                "tested_count": len(tested),
+                "total_categories": len(_VALID_TEST_CATEGORIES),
+                "remaining": sorted(_VALID_TEST_CATEGORIES - tested),
+                "minimums_met": passed,
+                "message": f"Category '{category}' was already marked as tested. No change.",
+            },
+            ensure_ascii=False,
+            default=str,
+        )
+
+    if not passed:
+        return json.dumps(
+            {
+                "success": False,
+                "category": category,
+                "error": (
+                    f"Category '{category}' does not meet minimum requirements. "
+                    f"Missing: {'; '.join(missing_reasons)}. "
+                    f"Continue testing before marking this category."
+                ),
+                "missing_reasons": missing_reasons,
+                "stats": {
+                    "unique_tests": tracker.get_category_stats(category)["unique_tests"],
+                    "unique_endpoints": tracker.get_category_stats(category)["unique_endpoints"],
+                    "tools_used": sorted(tracker.get_category_stats(category)["tools_used"]),
+                },
+            },
+            ensure_ascii=False,
+            default=str,
+        )
+
     tested.add(category)
     remaining = _VALID_TEST_CATEGORIES - tested
 
-    if already_tested:
-        return json.dumps({
+    return json.dumps(
+        {
             "success": True,
             "category": category,
             "tested_count": len(tested),
             "total_categories": len(_VALID_TEST_CATEGORIES),
             "remaining": sorted(remaining),
-            "message": f"Category '{category}' was already marked as tested. No change.",
-        }, ensure_ascii=False, default=str)
-
-    return json.dumps({
-        "success": True,
-        "category": category,
-        "tested_count": len(tested),
-        "total_categories": len(_VALID_TEST_CATEGORIES),
-        "remaining": sorted(remaining),
-        "message": f"Category '{category}' marked as tested. {len(remaining)} categories remaining.",
-    }, ensure_ascii=False, default=str)
+            "minimums_met": True,
+            "evidence": {
+                "tools_used": tools,
+                "endpoints_tested": endpoints,
+                "test_count": test_count,
+                "findings_count": findings_count,
+            },
+            "message": f"Category '{category}' marked as tested with evidence. {len(remaining)} categories remaining.",
+        },
+        ensure_ascii=False,
+        default=str,
+    )

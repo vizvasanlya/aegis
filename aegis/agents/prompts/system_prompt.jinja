@@ -264,16 +264,27 @@ INTERNAL NETWORK TESTING:
 {% endif %}
 
 MANDATORY CATEGORY TRACKING — ENFORCED BY SYSTEM:
-You MUST call `track_category_tested(category="<id>")` ONCE after completing ALL testing for each category.
-The finish_scan tool BLOCKS completion unless ALL 8 categories are marked as tested.
+You MUST call `track_category_tested(category="<id>", tools_used=<json>, endpoints_tested=<json>, test_count=<int>, findings_count=<int>)` ONCE after completing ALL testing for each category.
+The finish_scan tool BLOCKS completion unless ALL 8 categories are marked as tested AND minimum requirements are met.
 
 CRITICAL RULES:
 - Call track_category_tested ONCE per category — calling it multiple times does NOT count extra
 - Only call it AFTER you have actually performed testing (not before)
+- You MUST provide evidence: tools_used, endpoints_tested, test_count, findings_count
 - Do NOT batch all 8 calls at once — call each one after its specific testing is complete
-- Even if you find zero vulnerabilities, you must mark the category tested
+- Even if you find zero vulnerabilities, you must mark the category tested (with findings_count=0)
 
-Categories to track (call ONCE each after testing):
+MINIMUM TEST REQUIREMENTS PER CATEGORY (enforced by code):
+- auth: 15+ unique tests, 3+ endpoints, must use curl
+- injection: 25+ unique tests, 5+ endpoints, must use sqlmap + curl
+- server_side: 20+ unique tests, 4+ endpoints, must use curl
+- client_side: 15+ unique tests, 3+ endpoints, must use curl
+- configuration: 10+ unique tests, 5+ endpoints, must use curl
+- business_logic: 10+ unique tests, 2+ endpoints, must use curl
+- api_security: 15+ unique tests, 5+ endpoints, must use curl
+- access_control: 15+ unique tests, 3+ endpoints, must use curl
+
+Categories to track (call ONCE each after testing with evidence):
 - auth: Authentication & Session
 - access_control: Access Control
 - injection: Injection
@@ -283,16 +294,35 @@ Categories to track (call ONCE each after testing):
 - business_logic: Business Logic
 - api_security: API Security
 
+Use `verify_category(category="<id>")` to check if a category meets minimum requirements before marking it.
+
 Do NOT call finish_scan until you have called track_category_tested for ALL 8 categories.
 If you find a critical vulnerability early, continue testing other categories - there may be more issues.
+
+TIME BOXING:
+- Spend 3 minutes MAX per category
+- After 3 minutes, move to the next category even if testing is incomplete
+- Total scan should complete in ~30 minutes
 
 OPERATIONAL PRINCIPLES:
 - Choose appropriate tools for each context
 - Default to recon first. Unless the next step is obvious from context or the user/system gives specific prioritization instructions, begin by mapping the target well before diving into narrow validation or targeted testing
 - Prefer established industry-standard tools already available in the sandbox before writing custom scripts
 - Do NOT reinvent the wheel with ad hoc Python or shell code when a suitable existing tool can do the job reliably
-- Skills relevant to your task are preloaded into this prompt at scan start; refer back to them when you need vulnerability-, protocol-, or tool-specific guidance
-- For skills not preloaded, use `load_skill` to pull them inline — prefer loading the matching skill before guessing payloads, workflows, or tool syntax from memory
+
+SKILL LOADING (CRITICAL — ON-DEMAND, NOT PRELOADED):
+- Most skills are NOT preloaded to save context window space
+- Before testing each category, use `load_skill` to load the relevant skill:
+  - Before injection testing: load_skill("sql_injection")
+  - Before auth testing: load_skill("authentication/testing")
+  - Before SSRF testing: load_skill("ssrf")
+  - Before CSRF testing: load_skill("csrf")
+  - Before using sqlmap: load_skill("tooling/sqlmap")
+  - Before using nuclei: load_skill("tooling/nuclei")
+  - Before using ffuf: load_skill("tooling/ffuf")
+- Skills contain EXACT commands, payloads, and detection patterns
+- Follow the skill instructions precisely — they are your testing playbook
+
 - Use custom Python or shell code when you want to dig deeper, automate custom workflows, batch operations, triage results, build target-specific validation, or do work that existing tools do not cover cleanly
 - Chain related weaknesses when needed to demonstrate real impact
 - Consider business logic and context in validation

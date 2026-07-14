@@ -28,7 +28,7 @@ _MANDATORY_CATEGORIES = {
 
 
 def _check_coverage(ctx: RunContextWrapper) -> list[str]:
-    """Check which mandatory categories have been tested."""
+    """Check which mandatory categories have been tested with minimum enforcement."""
     inner = ctx.context if isinstance(ctx.context, dict) else {}
     tested = inner.get("tested_categories", set())
 
@@ -36,9 +36,36 @@ def _check_coverage(ctx: RunContextWrapper) -> list[str]:
         tested = set(tested) if tested else set()
 
     missing = []
+
+    # Stage 1: Check all 8 categories are marked
     for cat_id, cat_name in _MANDATORY_CATEGORIES.items():
         if cat_id not in tested:
-            missing.append(f"{cat_id} ({cat_name})")
+            missing.append(f"{cat_id} ({cat_name}) — NOT TESTED")
+
+    # Stage 2: Check minimum tests per category using TestTracker
+    if not missing:  # Only check minimums if all categories are marked
+        from aegis.tools.enforcement.tracker import get_tracker
+
+        tracker = get_tracker(ctx)
+
+        for cat_id in _MANDATORY_CATEGORIES:
+            passed, reasons = tracker.check_minimums(cat_id)
+            if not passed:
+                missing.append(f"{cat_id} — minimums not met: {'; '.join(reasons)}")
+
+    # Stage 3: Check evidence quality
+    if not missing:  # Only check evidence if minimums are met
+        from aegis.tools.enforcement.verifier import EvidenceVerifier
+
+        verifier = EvidenceVerifier()
+
+        for cat_id in _MANDATORY_CATEGORIES:
+            evidence_result = verifier.verify_category_evidence(cat_id, inner)
+            if not evidence_result["passed"]:
+                missing.append(
+                    f"{cat_id} — missing evidence: {', '.join(evidence_result['missing'])}"
+                )
+
     return missing
 
 

@@ -27,32 +27,18 @@ def _resolve_skills(
 ) -> list[str]:
     """Build the deduped, ordered skills list for the prompt render.
 
-    Order:
+    Loads ONLY essential skills at startup. Other skills are loaded
+    on-demand via the load_skill tool to prevent context window overflow.
 
+    Order:
     1. Whatever the caller asked for, in order.
-    2. ``scan_modes/<mode>`` (always).
-    3. ``tooling/agent_browser`` (always — every agent has shell + the
-       agent-browser CLI).
-    4. ``tooling/python`` (always — Python runs through ``exec_command``;
-       sandbox scripts can import ``caido_api`` for Caido automation).
-    5. ``coordination/root_agent`` for the root agent only — orchestration
-       guidance for delegating to specialist subagents.
-    6. Whitebox-specific skills if applicable.
+    2. ``scan_modes/<mode>`` (always — the scan mode strategy).
+    3. ``tooling/python`` (always — Python execution guidance).
+    4. ``coordination/root_agent`` for the root agent only.
+    5. Whitebox-specific skills if applicable.
     """
     ordered: list[str] = list(requested or [])
     ordered.append(f"scan_modes/{scan_mode}")
-    ordered.append("tooling/agent_browser")
-    ordered.append("tooling/browser_use")
-    ordered.append("tooling/exploit_validation")
-    ordered.append("tooling/vuln_chaining")
-    ordered.append("tooling/credential_stuffing")
-    ordered.append("tooling/api_fuzzing")
-    ordered.append("tooling/supply_chain")
-    ordered.append("vulnerabilities/graphql/advanced")
-    ordered.append("vulnerabilities/websocket/testing")
-    ordered.append("vulnerabilities/grpc/testing")
-    ordered.append("vulnerabilities/network/testing")
-    ordered.append("vulnerabilities/cloud_metadata/exploitation")
     ordered.append("tooling/python")
     if is_root:
         ordered.append("coordination/root_agent")
@@ -62,19 +48,17 @@ def _resolve_skills(
 
     mobile_mode = bool(scan_context and scan_context.get("mobile_mode"))
     if mobile_mode:
+        # Mobile mode loads all mobile skills at startup
         ordered.append("mobile/android_overview")
-        ordered.append("mobile/android_decompilation")
         ordered.append("mobile/android_vulnerabilities")
         ordered.append("mobile/ios_overview")
-        ordered.append("mobile/ios_analysis")
         ordered.append("mobile/ios_vulnerabilities")
         ordered.append("mobile/mobile_static_analysis")
-        ordered.append("mobile/mobile_dynamic_analysis")
-        ordered.append("mobile/mobile_network_analysis")
         ordered.append("mobile/mobsf_integration")
 
     internal_mode = bool(scan_context and scan_context.get("internal_mode"))
     if internal_mode:
+        # Internal mode loads all internal skills at startup
         ordered.append("internal/overview")
         ordered.append("internal/network_discovery")
         ordered.append("internal/active_directory")

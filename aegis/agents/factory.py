@@ -66,6 +66,7 @@ from aegis.tools.todo.tools import (
 from aegis.tools.web_search.tool import web_search
 from aegis.tools.api_fuzzing.tool import run_api_scan
 from aegis.tools.internal.tool import run_internal_scan
+from aegis.tools.enforcement.verification_agent import verify_category
 
 
 if TYPE_CHECKING:
@@ -248,7 +249,11 @@ def _wrap_exec_command(tool: FunctionTool) -> FunctionTool:
 
                 report_state = get_global_report_state()
                 run_dir = str(report_state.get_run_dir()) if report_state else None
-                logger.debug("Tool log: run_dir=%s, command=%s", run_dir, command[:50] if command else "empty")
+                logger.debug(
+                    "Tool log: run_dir=%s, command=%s",
+                    run_dir,
+                    command[:50] if command else "empty",
+                )
 
                 if run_dir and command:
                     inner = ctx.context if isinstance(ctx.context, dict) else {}
@@ -402,6 +407,7 @@ _BASE_TOOLS: tuple[Tool, ...] = (
     scope_rules,
     run_api_scan,
     run_internal_scan,
+    verify_category,
     view_agent_graph,
     send_message_to_agent,
     wait_for_message,

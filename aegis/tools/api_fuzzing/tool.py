@@ -451,6 +451,29 @@ async def run_api_scan(
     # Generate coverage report
     coverage = tracker.generate_report()
 
+    # Integrate with BatchTester for context management
+    from aegis.tools.enforcement.batch_tester import BatchTester
+
+    batch_tester = BatchTester(batch_size=5)
+
+    # Add all test results to batch tester
+    for result in results:
+        batch_tester.add_test(
+            {
+                "endpoint": result.test.endpoint,
+                "tool": "run_api_scan",
+                "finding": result.vulnerability,
+                "category": result.test.category,
+                "sub_category": result.test.name.split("-")[0] if "-" in result.test.name else "",
+            }
+        )
+
+    # Flush remaining tests
+    batch_tester.flush()
+
+    # Get summary
+    batch_summary = batch_tester.get_full_summary()
+
     return json.dumps(
         {
             "success": True,
@@ -460,6 +483,7 @@ async def run_api_scan(
             "coverage_percent": coverage.coverage_percent,
             "untested_endpoints": coverage.untested_endpoints,
             "vulnerabilities": vulnerabilities,
+            "batch_summary": batch_summary,
         },
         ensure_ascii=False,
         default=str,
@@ -486,9 +510,20 @@ def _common_endpoint_fallback() -> list:
 
     # GET endpoints (no body)
     get_paths = [
-        "/api", "/api/v1", "/api/v2", "/api/users", "/api/admin",
-        "/api/settings", "/api/health", "/api/status", "/users", "/admin",
-        "/health", "/status", "/api/v1/users", "/api/v1/admin",
+        "/api",
+        "/api/v1",
+        "/api/v2",
+        "/api/users",
+        "/api/admin",
+        "/api/settings",
+        "/api/health",
+        "/api/status",
+        "/users",
+        "/admin",
+        "/health",
+        "/status",
+        "/api/v1/users",
+        "/api/v1/admin",
     ]
     for path in get_paths:
         endpoints.append(Endpoint(path=path, method="GET"))
@@ -500,25 +535,48 @@ def _common_endpoint_fallback() -> list:
         ("/api/v1/auth/login", {"phone_number": {"type": "string"}, "pin": {"type": "string"}}),
         ("/api/v1/admin/auth/login", {"email": {"type": "string"}, "password": {"type": "string"}}),
         ("/login", {"username": {"type": "string"}, "password": {"type": "string"}}),
-        ("/register", {"email": {"type": "string"}, "password": {"type": "string"}, "name": {"type": "string"}}),
+        (
+            "/register",
+            {
+                "email": {"type": "string"},
+                "password": {"type": "string"},
+                "name": {"type": "string"},
+            },
+        ),
         ("/api/register", {"email": {"type": "string"}, "password": {"type": "string"}}),
-        ("/api/users", {"name": {"type": "string"}, "email": {"type": "string"}, "role": {"type": "string"}}),
+        (
+            "/api/users",
+            {"name": {"type": "string"}, "email": {"type": "string"}, "role": {"type": "string"}},
+        ),
         ("/api/admin/users", {"username": {"type": "string"}, "action": {"type": "string"}}),
         ("/api/settings", {"key": {"type": "string"}, "value": {"type": "string"}}),
         ("/api/search", {"query": {"type": "string"}, "filter": {"type": "string"}}),
         ("/api/upload", {"file_url": {"type": "string"}, "description": {"type": "string"}}),
         ("/api/webhook", {"url": {"type": "string"}, "event": {"type": "string"}}),
         ("/api/subscribe", {"email": {"type": "string"}, "topic": {"type": "string"}}),
-        ("/api/contact", {"name": {"type": "string"}, "email": {"type": "string"}, "message": {"type": "string"}}),
+        (
+            "/api/contact",
+            {
+                "name": {"type": "string"},
+                "email": {"type": "string"},
+                "message": {"type": "string"},
+            },
+        ),
     ]
     for path, props in post_endpoints:
-        endpoints.append(Endpoint(
-            path=path,
-            method="POST",
-            request_body=RequestBody(
-                content_type="application/json",
-                schema={"type": "object", "properties": props, "required": list(props.keys())[:2]},
-            ),
-        ))
+        endpoints.append(
+            Endpoint(
+                path=path,
+                method="POST",
+                request_body=RequestBody(
+                    content_type="application/json",
+                    schema={
+                        "type": "object",
+                        "properties": props,
+                        "required": list(props.keys())[:2],
+                    },
+                ),
+            )
+        )
 
     return endpoints
