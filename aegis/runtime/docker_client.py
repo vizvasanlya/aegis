@@ -60,9 +60,13 @@ class AegisDockerSandboxClient(DockerSandboxClient):
     ) -> Container:
         # ----- BEGIN VERBATIM COPY of DockerSandboxClient._create_container -----
         # SDK ref: src/agents/sandbox/sandboxes/docker.py:1434-1477 (v0.14.6).
-        if not self.image_exists(image):
-            repo, tag = parse_repository_tag(image)
+        # Always pull latest image to ensure we have the newest code
+        repo, tag = parse_repository_tag(image)
+        try:
+            logger.info("Pulling latest image: %s:%s", repo, tag or "latest")
             self.docker_client.images.pull(repo, tag=tag or None, all_tags=False)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to pull image %s:%s (%s), using local", repo, tag, exc)
 
         assert self.image_exists(image)
         environment: dict[str, str] | None = None

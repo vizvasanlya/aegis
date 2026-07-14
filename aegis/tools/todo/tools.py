@@ -598,9 +598,9 @@ async def track_category_tested(
 ) -> str:
     """Mark a vulnerability testing category as completed.
 
-    You MUST call this after finishing testing for each category.
-    The finish_scan tool checks that ALL 8 categories are marked
-    before allowing scan completion.
+    IMPORTANT: Call this ONCE per category AFTER you have actually performed
+    testing. Do NOT call this multiple times for the same category.
+    The finish_scan tool checks that ALL 8 categories are marked.
 
     Valid categories:
     - auth: Authentication & Session (login, JWT, OAuth, session mgmt)
@@ -630,8 +630,19 @@ async def track_category_tested(
         tested = set(tested)
         inner["tested_categories"] = tested
 
+    already_tested = category in tested
     tested.add(category)
     remaining = _VALID_TEST_CATEGORIES - tested
+
+    if already_tested:
+        return json.dumps({
+            "success": True,
+            "category": category,
+            "tested_count": len(tested),
+            "total_categories": len(_VALID_TEST_CATEGORIES),
+            "remaining": sorted(remaining),
+            "message": f"Category '{category}' was already marked as tested. No change.",
+        }, ensure_ascii=False, default=str)
 
     return json.dumps({
         "success": True,

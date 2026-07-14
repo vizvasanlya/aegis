@@ -264,11 +264,16 @@ INTERNAL NETWORK TESTING:
 {% endif %}
 
 MANDATORY CATEGORY TRACKING — ENFORCED BY SYSTEM:
-You MUST call `track_category_tested(category="<id>")` AFTER completing testing for each category.
+You MUST call `track_category_tested(category="<id>")` ONCE after completing ALL testing for each category.
 The finish_scan tool BLOCKS completion unless ALL 8 categories are marked as tested.
-This is NOT optional. Even if you find zero vulnerabilities in a category, you must mark it tested.
 
-Categories to track:
+CRITICAL RULES:
+- Call track_category_tested ONCE per category — calling it multiple times does NOT count extra
+- Only call it AFTER you have actually performed testing (not before)
+- Do NOT batch all 8 calls at once — call each one after its specific testing is complete
+- Even if you find zero vulnerabilities, you must mark the category tested
+
+Categories to track (call ONCE each after testing):
 - auth: Authentication & Session
 - access_control: Access Control
 - injection: Injection
