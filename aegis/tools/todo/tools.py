@@ -660,9 +660,9 @@ async def track_category_tested(
 
     tracker = get_tracker(ctx)
 
-    # Log the tools and endpoints to the tracker
-    for tool in tools:
-        for endpoint in endpoints[:3]:  # Log up to 3 endpoints per tool
+    # Log the tools and endpoints to the tracker (lightweight)
+    for tool in tools[:5]:  # Max 5 tools
+        for endpoint in endpoints[:3]:  # Max 3 endpoints per tool
             tracker.log_test(
                 category=category,
                 endpoint=endpoint,

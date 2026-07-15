@@ -69,6 +69,9 @@ def _check_coverage(ctx: RunContextWrapper) -> list[str]:
     return missing
 
 
+_MAX_FINISH_ATTEMPTS = 3
+
+
 def _do_finish(
     *,
     parent_id: str | None,
@@ -87,6 +90,19 @@ def _do_finish(
             ),
         }
 
+    # Track finish attempts to prevent infinite loop
+    inner = ctx.context if isinstance(ctx.context, dict) else {} if ctx else {}
+    finish_attempts = inner.get("_finish_attempts", 0)
+    if finish_attempts >= _MAX_FINISH_ATTEMPTS:
+        # After max attempts, force completion with warning
+        logger.warning(
+            "finish_scan called %d times — forcing completion despite incomplete coverage",
+            finish_attempts,
+        )
+        inner["_finish_forced"] = True
+    else:
+        inner["_finish_attempts"] = finish_attempts + 1
+
     errors: list[str] = []
     if not executive_summary.strip():
         errors.append("Executive summary cannot be empty")
@@ -97,8 +113,8 @@ def _do_finish(
     if not recommendations.strip():
         errors.append("Recommendations cannot be empty")
 
-    # Check category coverage
-    if ctx is not None:
+    # Check category coverage (skip if forced)
+    if ctx is not None and not inner.get("_finish_forced"):
         missing = _check_coverage(ctx)
         if missing:
             errors.append(
